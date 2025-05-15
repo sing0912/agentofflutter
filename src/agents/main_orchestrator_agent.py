@@ -552,7 +552,7 @@ main_orchestrator_agent = Agent(
             제공된 앱 명세를 확인하고, initialize_project_tool을 호출하여
             pubspec.yaml, analysis_options.yaml 등의 기본 파일을 생성합니다.
             """,
-            model=get_agent_config("model_agent")["model"],
+            model=get_agent_config(agent_type="model_agent")["model"],
             tools=[initialize_project_tool]
         ),
 
@@ -586,7 +586,7 @@ main_orchestrator_agent = Agent(
             assemble_flutter_project_tool을 호출하여 필요한 추가 파일(예: main.dart)을 생성하고
             Flutter 프로젝트의 최종 형태를 완성합니다.
             """,
-            model=get_agent_config("model_agent")["model"],
+            model=get_agent_config(agent_type="model_agent")["model"],
             tools=[assemble_flutter_project_tool]
         )
     ]
@@ -628,7 +628,7 @@ def register_agents(app_spec):
                     제공된 앱 명세를 확인하고, initialize_project_tool을 호출하여
                     pubspec.yaml, analysis_options.yaml 등의 기본 파일을 생성합니다.
                     """,
-                    model=get_agent_config("model_agent")["model"],
+                    model=get_agent_config(agent_type="model_agent")["model"],
                     tools=[initialize_project_tool]
                 ),
 
@@ -650,7 +650,7 @@ def register_agents(app_spec):
                     assemble_flutter_project_tool을 호출하여 필요한 추가 파일(예: main.dart)을 생성하고
                     Flutter 프로젝트의 최종 형태를 완성합니다.
                     """,
-                    model=get_agent_config("model_agent")["model"],
+                    model=get_agent_config(agent_type="model_agent")["model"],
                     tools=[assemble_flutter_project_tool]
                 )
             ]

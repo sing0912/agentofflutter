@@ -8,6 +8,7 @@ import json
 import time
 import uuid
 import io
+import os
 import zipfile
 from typing import Dict, Any, Optional
 from datetime import datetime
@@ -18,13 +19,14 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from google.adk import Runner, Agent
-from google.genai.types import Content
 from src.utils.logger import setup_logger
 
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.sessions import InMemorySessionService
 
-from src.config.settings import API_HOST, API_PORT, API_DEBUG
+from src.config.settings import (
+    API_HOST, API_PORT, API_DEBUG, FLUTTER_OUTPUT_DIR
+)
 from src.agents.main_orchestrator_agent import (
     main_orchestrator_agent, register_agents
 )
@@ -105,6 +107,45 @@ class ServerStatus(BaseModel):
     uptime: str
 
 
+# 파일 시스템에 아티팩트를 저장하는 함수 추가
+async def save_artifacts_to_filesystem(job_id: str, artifacts: Dict[str, Any]):
+    """
+    메모리에 저장된 아티팩트를 파일 시스템에 저장합니다.
+    
+    Args:
+        job_id: 작업 ID
+        artifacts: 아티팩트 딕셔너리
+    """
+    try:
+        # 작업별 디렉토리 생성
+        job_output_dir = os.path.join(FLUTTER_OUTPUT_DIR, job_id)
+        os.makedirs(job_output_dir, exist_ok=True)
+        
+        # 아티팩트 내용을 파일로 저장
+        for artifact_name, artifact_content in artifacts.items():
+            # 파일 경로 구성
+            file_path = os.path.join(job_output_dir, artifact_name)
+            
+            # 디렉토리 구조 생성
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            
+            # 파일 저장
+            with open(file_path, 'wb') as f:
+                f.write(artifact_content)
+            
+            api_logger.info(f"아티팩트 저장됨: {file_path}")
+        
+        # 아티팩트 목록 업데이트
+        if job_id in active_jobs:
+            active_jobs[job_id]["artifacts"] = list(artifacts.keys())
+            api_logger.info(f"작업 {job_id}의 아티팩트 목록이 업데이트되었습니다.")
+        
+        return True
+    except Exception as e:
+        api_logger.error(f"아티팩트 저장 중 오류 발생: {str(e)}")
+        return False
+
+
 async def handle_app_generation(job_id: str, app_spec: dict):
     """
     앱 생성 작업을 비동기로 처리합니다.
@@ -137,37 +178,23 @@ async def handle_app_generation(job_id: str, app_spec: dict):
         api_logger.info(f"세션 생성 완료: {type_name}, 값: {session_id}")
 
         # 세션 ID를 사용자 ID에 매핑
-        session_id_maps[user_id] = session_id
-        api_logger.info(f"세션 ID 맵에 추가: {user_id} -> {session_id}")
-
-        # 세션 ID 문자열도 저장
         session_id_str = str(session_id)
-        active_jobs[job_id]["session_id"] = session_id_str
-        active_jobs[job_id]["user_id"] = user_id  # 사용자 ID 저장
         api_logger.info(f"세션 ID 문자열: {session_id_str}")
+        session_id_maps[user_id] = session_id
+        session_runners[user_id] = runner
 
-        # app_spec 저장
-        active_jobs[job_id]["app_spec"] = app_spec
+        api_logger.info("Runner 초기화 완료: Runner")
 
-        # 업데이트된 에이전트로 런너 재설정
-        updated_runner = Runner(
-            app_name="AgentOfFlutter",
-            agent=updated_agent,
-            artifact_service=artifact_service,
-            session_service=session_service,
-        )
-        api_logger.info(f"Runner 초기화 완료: {type(updated_runner).__name__}")
-
-        # 초기 메시지 내용 구성
-        initial_message = Content.text(
+        # 메시지 내용 구성 - Content 클래스 우회
+        initial_message = (
             f"안녕하세요! Flutter 앱을 생성해 주세요. 다음은 앱 명세입니다: "
             f"{json.dumps(app_spec, ensure_ascii=False)}"
         )
-        api_logger.info("초기 메시지 구성 완료: Content")
+        api_logger.info("초기 메시지 구성 완료: 문자열 사용")
 
         # 작업 ID와 사용자 ID 연결
         active_jobs[job_id]["user_id"] = user_id
-        active_jobs[job_id]["runner"] = updated_runner
+        active_jobs[job_id]["runner"] = runner
         active_jobs[job_id]["session_id"] = session_id_str
 
         # 세션 ID와 사용자 ID 기록
@@ -178,18 +205,37 @@ async def handle_app_generation(job_id: str, app_spec: dict):
             f"run_async 호출 전 - 세션 ID 유형: {type(session_id).__name__}"
         )
 
-        # 비동기 작업으로 실행 (여기서 initial_message 사용)
+        # 비동기 작업으로 실행 (여기서 initial_message 문자열 사용)
         try:
-            asyncio.create_task(
-                updated_runner.run_async(
+            run_task = asyncio.create_task(
+                runner.run_async(
                     user_id=user_id,
                     session_id=session_id,
-                    new_message=initial_message
+                    new_message=initial_message  # 문자열 전달
                 )
             )
             api_logger.info("앱 생성 작업 시작됨")
+            
+            # 작업이 완료될 때까지 대기
+            await run_task
+            
+            # 작업이 완료되면 아티팩트 가져오기
+            artifacts = {}
+            for artifact_id in artifact_service.list_artifacts(session_id):
+                artifact_data = artifact_service.get_artifact(session_id, artifact_id)
+                if artifact_data and artifact_data.data:
+                    artifacts[artifact_id] = artifact_data.data
+            
+            # 비동기 작업 실행 후 아티팩트 저장 로그
+            if artifacts:
+                await save_artifacts_to_filesystem(job_id, artifacts)
+                api_logger.info(
+                    f"작업 {job_id}의 아티팩트가 저장되었습니다."
+                )
+            
         except Exception as e:
             api_logger.error(f"러너 실행 실패: {str(e)}")
+            raise
 
         # 작업 완료 표시
         active_jobs[job_id]["status"] = "completed"
@@ -217,8 +263,9 @@ async def start_flutter_app_creation(request: Request):
 
         job_id = str(uuid.uuid4())
 
-        # 작업 상태 초기화
+        # 작업 상태 초기화 - job_id 필드 추가
         active_jobs[job_id] = {
+            "job_id": job_id,  # job_id 필드 명시적 추가
             "status": "pending",
             "progress": 0,
             "message": "작업 초기화 중...",
@@ -254,8 +301,8 @@ async def start_app_creation(job_id: str, app_spec: dict):
         app_spec: 앱 명세 딕셔너리
     """
     try:
-        # 에이전트 초기화
-        # agent_config = get_agent_config(agent_type="main_agent")
+        # 에이전트 초기화 - agent_config 변수는 사용하지 않으므로 제거
+        # 수정: agent_type 파라미터 추가는 했지만 변수는 사용하지 않아 제거
         
         # AgentOfFlutter 앱 에이전트 생성 - 단순화된 버전
         main_agent = Agent(
@@ -271,12 +318,16 @@ async def start_app_creation(job_id: str, app_spec: dict):
         user_id = str(uuid.uuid4())
         api_logger.info(f"생성된 사용자 ID: {user_id}")
 
+        # 세션 서비스 및 아티팩트 서비스 생성
+        artifact_service = InMemoryArtifactService()
+        session_service = InMemorySessionService()
+
         # 세션 생성
         runner = Runner(
             app_name="AgentOfFlutter", 
             agent=main_agent,
-            artifact_service=InMemoryArtifactService(),
-            session_service=InMemorySessionService()
+            artifact_service=artifact_service,
+            session_service=session_service
         )
         session_id = runner.session_service.create_session(
             app_name="AgentOfFlutter",
@@ -292,12 +343,12 @@ async def start_app_creation(job_id: str, app_spec: dict):
 
         api_logger.info("Runner 초기화 완료: Runner")
 
-        # 초기 메시지 내용 구성
-        initial_message = Content.text(
+        # 메시지 내용 구성 - Content 클래스 우회
+        initial_message = (
             f"안녕하세요! Flutter 앱을 생성해 주세요. 다음은 앱 명세입니다: "
             f"{json.dumps(app_spec, ensure_ascii=False)}"
         )
-        api_logger.info("초기 메시지 구성 완료: Content")
+        api_logger.info("초기 메시지 구성 완료: 문자열 사용")
 
         # 작업 ID와 사용자 ID 연결
         active_jobs[job_id]["user_id"] = user_id
@@ -312,18 +363,37 @@ async def start_app_creation(job_id: str, app_spec: dict):
             f"run_async 호출 전 - 세션 ID 유형: {type(session_id).__name__}"
         )
 
-        # 비동기 작업으로 실행 (여기서 initial_message 사용)
+        # 비동기 작업으로 실행 (여기서 initial_message 문자열 사용)
         try:
-            asyncio.create_task(
+            run_task = asyncio.create_task(
                 runner.run_async(
                     user_id=user_id,
                     session_id=session_id,
-                    new_message=initial_message
+                    new_message=initial_message  # 문자열 전달
                 )
             )
             api_logger.info("앱 생성 작업 시작됨")
+            
+            # 작업이 완료될 때까지 대기
+            await run_task
+            
+            # 작업이 완료되면 아티팩트 가져오기
+            artifacts = {}
+            for artifact_id in artifact_service.list_artifacts(session_id):
+                artifact_data = artifact_service.get_artifact(session_id, artifact_id)
+                if artifact_data and artifact_data.data:
+                    artifacts[artifact_id] = artifact_data.data
+            
+            # 비동기 작업 실행 후 아티팩트 저장 로그
+            if artifacts:
+                await save_artifacts_to_filesystem(job_id, artifacts)
+                api_logger.info(
+                    f"작업 {job_id}의 아티팩트가 저장되었습니다."
+                )
+            
         except Exception as e:
             api_logger.error(f"러너 실행 실패: {str(e)}")
+            raise
 
         # 작업 완료 표시
         active_jobs[job_id]["status"] = "completed"
@@ -358,7 +428,8 @@ async def get_job_status(job_id: str):
 
     # job_id 값을 포함하여 JobStatus 생성
     job_info = active_jobs[job_id].copy()
-    job_info["job_id"] = job_id
+    if "job_id" not in job_info:
+        job_info["job_id"] = job_id
     return JobStatus(**job_info)
 
 
@@ -372,9 +443,10 @@ async def get_all_jobs():
     """
     result = {}
     for job_id, job_info in active_jobs.items():
-        # 각 작업 정보에 job_id 추가
+        # 각 작업 정보에 job_id 명시적 추가
         job_data = job_info.copy()
-        job_data["job_id"] = job_id
+        if "job_id" not in job_data:
+            job_data["job_id"] = job_id
         result[job_id] = JobStatus(**job_data)
     
     return result
@@ -536,13 +608,13 @@ async def download_artifact(job_id: str, artifact_name: str):
 @app.get("/download_zip/{job_id}")
 async def download_zip(job_id: str):
     """
-    모든 아티팩트를 zip 파일로 다운로드합니다.
+    특정 작업에서 생성된 모든 아티팩트를 ZIP 파일로 다운로드합니다.
 
     Args:
         job_id: 작업 ID
 
     Returns:
-        zip 파일 스트림
+        ZIP 파일 스트림
     """
     if job_id not in active_jobs:
         raise HTTPException(
@@ -550,128 +622,59 @@ async def download_zip(job_id: str):
             detail=f"작업 ID {job_id}를 찾을 수 없습니다."
         )
 
-    job_info = active_jobs[job_id]
-
-    if job_info["status"] != "completed":
-        raise HTTPException(
+    if active_jobs[job_id]["status"] != "completed":
+        return JSONResponse(
             status_code=400,
-            detail=f"작업이 아직 완료되지 않았습니다. 현재 상태: {job_info['status']}"
+            content={"error": "작업이 아직 완료되지 않았습니다."}
         )
 
     try:
-        # 저장한 러너 객체 사용
-        runner_obj = job_info.get("runner")
-        if not runner_obj:
-            raise HTTPException(
-                status_code=500,
-                detail="작업에 러너 객체가 없습니다."
+        # 작업별 출력 디렉토리 경로
+        job_output_dir = os.path.join(FLUTTER_OUTPUT_DIR, job_id)
+
+        # 디렉토리가 존재하는지 확인
+        if not os.path.exists(job_output_dir):
+            api_logger.error(f"작업 디렉토리가 존재하지 않음: {job_output_dir}")
+            return JSONResponse(
+                status_code=404,
+                content={"error": "생성된 앱 파일을 찾을 수 없습니다."}
             )
 
-        # 세션 객체 가져오기
-        user_id = job_info.get("user_id")
-        if not user_id:
-            raise HTTPException(
-                status_code=500,
-                detail="작업에 사용자 ID가 없습니다."
-            )
-
-        # 세션 맵에서 세션 객체 가져오기
-        session = session_id_maps.get(user_id)
-        if not session:
-            # 세션 서비스에서 직접 가져오기 시도
-            try:
-                session = runner_obj.session_service.get_session(user_id)
-                if session:
-                    # 세션 맵에 저장
-                    session_id_maps[user_id] = session
-                    api_logger.info(f"세션 서비스에서 세션 가져옴: {user_id}")
-                else:
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"사용자 ID {user_id}에 대한 세션을 찾을 수 없습니다."
-                    )
-            except Exception as e:
-                api_logger.error(f"세션 가져오기 실패: {str(e)}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"세션 가져오기 실패: {str(e)}"
-                )
-
-        # 아티팩트 목록 가져오기
-        api_logger.info("ZIP용 아티팩트 목록 요청 - 세션: {0}".format(session))
-        try:
-            # 직접 아티팩트 서비스에 접근해 아티팩트 목록 가져오기
-            try:
-                artifacts = (
-                    runner_obj.artifact_service.list_artifacts(
-                        session
-                    )
-                )
-            except AttributeError:
-                # ADK 0.5.0 변경사항 - 세션 메서드 사용
-                api_logger.info("list_artifacts 메서드 없음, 대체 방법 시도")
-                try:
-                    # 세션 객체의 get_artifacts 메서드 시도
-                    if hasattr(session, 'get_artifacts'):
-                        artifacts = session.get_artifacts()
-                    else:
-                        # runner의 직접 접근 시도
-                        artifacts = runner_obj.list_artifacts(
-                            session
-                        )
-                except Exception as inner_e:
-                    api_logger.error(
-                        f"대체 방법으로 아티팩트 목록 가져오기 실패: {str(inner_e)}"
-                    )
-                    artifacts = []
-        except Exception as e:
-            api_logger.warning(f"ZIP용 아티팩트 목록 가져오기 실패: {str(e)}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"아티팩트 목록 가져오기 실패: {str(e)}"
-            )
-
-        # 앱 이름 가져오기
-        app_spec = job_info.get("app_spec", {})
+        # 앱 이름 가져오기 (있는 경우)
+        app_spec = active_jobs[job_id].get("app_spec", {})
         app_name = app_spec.get("app_name", "flutter_app")
 
-        # zip 파일 생성
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(
-            zip_buffer, "w", zipfile.ZIP_DEFLATED
-        ) as zip_file:
-            for artifact_name in artifacts:
-                try:
-                    artifact = runner_obj.artifact_service.load_artifact(
-                        session, str(artifact_name)
-                    )
-                    if artifact:
-                        zip_file.writestr(str(artifact_name), artifact.data)
-                except Exception as e:
-                    api_logger.warning(
-                        f"아티팩트 로드 실패: {artifact_name}, 오류: {str(e)}"
-                    )
-                    continue
+        # 임시 메모리 버퍼에 ZIP 파일 생성
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            # 재귀적으로 모든 파일 압축
+            for root, _, files in os.walk(job_output_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    # ZIP 내 상대 경로 계산
+                    arcname = os.path.relpath(file_path, job_output_dir)
+                    zip_file.write(file_path, arcname)
 
-        # 파일 포인터를 시작으로 되돌림
-        zip_buffer.seek(0)
+        # 버퍼 위치를 시작으로 재설정
+        buffer.seek(0)
 
-        # zip 파일 반환
+        # ZIP 파일 이름 설정
+        filename = f"{app_name}.zip"
+
+        # 파일 다운로드 응답 반환
         return StreamingResponse(
-            zip_buffer,
+            buffer,
             media_type="application/zip",
             headers={
-                "Content-Disposition": f"attachment; filename={app_name}.zip"
+                "Content-Disposition": f'attachment; filename="{filename}"'
             }
         )
 
-    except HTTPException:
-        raise
     except Exception as e:
         api_logger.error(f"ZIP 파일 생성 중 오류 발생: {str(e)}")
-        raise HTTPException(
+        return JSONResponse(
             status_code=500,
-            detail=f"ZIP 파일 생성 중 오류 발생: {str(e)}"
+            content={"error": f"ZIP 파일 생성 중 오류 발생: {str(e)}"}
         )
 
 
@@ -759,7 +762,14 @@ def start_server():
     """
     import uvicorn
 
+    # 출력 디렉토리 생성
+    os.makedirs(FLUTTER_OUTPUT_DIR, exist_ok=True)
+    api_logger.info(f"출력 디렉토리 확인: {FLUTTER_OUTPUT_DIR}")
+
+    # 서버 시작 메시지
     api_logger.info(f"서버 시작: http://{API_HOST}:{API_PORT}")
+
+    # 서버 시작
     uvicorn.run(
         "src.api.app:app",
         host=API_HOST,
