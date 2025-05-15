@@ -352,7 +352,10 @@ async def get_job_status(job_id: str):
             detail=f"작업 ID {job_id}를 찾을 수 없습니다."
         )
 
-    return JobStatus(**active_jobs[job_id])
+    # job_id 값을 포함하여 JobStatus 생성
+    job_info = active_jobs[job_id].copy()
+    job_info["job_id"] = job_id
+    return JobStatus(**job_info)
 
 
 @app.get("/jobs", response_model=Dict[str, JobStatus])
@@ -363,10 +366,14 @@ async def get_all_jobs():
     Returns:
         모든 작업의 상태를 포함하는 딕셔너리
     """
-    return {
-        job_id: JobStatus(**job_info)
-        for job_id, job_info in active_jobs.items()
-    }
+    result = {}
+    for job_id, job_info in active_jobs.items():
+        # 각 작업 정보에 job_id 추가
+        job_data = job_info.copy()
+        job_data["job_id"] = job_id
+        result[job_id] = JobStatus(**job_data)
+    
+    return result
 
 
 @app.get("/download/{job_id}/{artifact_name}")
