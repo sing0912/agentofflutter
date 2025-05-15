@@ -312,9 +312,6 @@ async def start_app_creation(job_id: str, app_spec: dict):
         app_spec: 앱 명세 딕셔너리
     """
     try:
-        # 앱 명세 저장
-        active_jobs[job_id]["app_spec"] = app_spec
-
         # 디버그: 함수 시작 로그
         api_logger.info(f"앱 생성 시작: job_id={job_id}")
         api_logger.info(f"앱 명세: {json.dumps(app_spec, ensure_ascii=False)}")
@@ -327,12 +324,8 @@ async def start_app_creation(job_id: str, app_spec: dict):
         app_description = app_spec.get("description", "Flutter application")
         api_logger.info(f"앱 정보: 이름={app_name}, 설명={app_description}")
 
-        # 앱 버전 및 폴더명 생성
-        app_version = f"v{int(time.time()) % 10000}"  # 현재 시간의 일부를 사용한 버전 정보
-        folder_name = f"App_{app_name}_{app_version}"  # 'App_' 접두사 추가
-        
-        # job_id와 폴더명을 매핑하여 저장
-        active_jobs[job_id]["folder_name"] = folder_name
+        # 이미 저장된 폴더명 사용
+        folder_name = active_jobs[job_id].get("folder_name", job_id)
         
         # 작업별 출력 디렉토리 생성
         job_output_dir = os.path.join(FLUTTER_OUTPUT_DIR, folder_name)
