@@ -149,11 +149,15 @@ async def handle_app_generation(job_id: str, app_spec: dict):
 
         # 에이전트 실행
         api_logger.info(f"세션 ID: {session_id}, 사용자 ID: {user_id}")
-        await updated_runner.run_async(
+        run_generator = updated_runner.run_async(
             user_id=user_id,
             session_id=session_id,
             new_message=initial_message
         )
+        
+        # 제너레이터 소비
+        async for _ in run_generator:
+            pass
 
         # 결과 처리
         active_jobs[job_id]["progress"] = 90
