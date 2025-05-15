@@ -117,6 +117,7 @@ async def handle_app_generation(job_id: str, app_spec: dict):
 
         # 앱 명세에 따라 에이전트 등록
         updated_agent = register_agents(app_spec)
+        api_logger.info(f"에이전트 등록 완료: {type(updated_agent).__name__}")
 
         # 업데이트된 에이전트로 런너 재설정
         updated_runner = Runner(
@@ -125,17 +126,22 @@ async def handle_app_generation(job_id: str, app_spec: dict):
             artifact_service=artifact_service,
             session_service=session_service,
         )
+        api_logger.info(f"Runner 초기화 완료: {type(updated_runner).__name__}")
 
         # 세션 생성
         user_id = str(uuid.uuid4())
+        api_logger.info(f"생성된 사용자 ID: {user_id}")
+        
         session_id = session_service.create_session(
             app_name="AgentOfFlutter",
             user_id=user_id
         )
+        api_logger.info(f"세션 생성 완료: {type(session_id).__name__}, 값: {session_id}")
 
         # 세션 ID를 문자열로 저장
         session_id_str = str(session_id)
         active_jobs[job_id]["session_id"] = session_id_str
+        api_logger.info(f"세션 ID 문자열: {session_id_str}")
 
         # 초기 메시지 구성
         initial_message = Content(
@@ -144,21 +150,31 @@ async def handle_app_generation(job_id: str, app_spec: dict):
             ],
             role="user"
         )
+        api_logger.info(f"초기 메시지 구성 완료: {type(initial_message).__name__}")
 
         active_jobs[job_id]["progress"] = 20
         active_jobs[job_id]["message"] = "앱 생성 시작..."
 
         # 에이전트 실행
         api_logger.info(f"세션 ID: {session_id_str}, 사용자 ID: {user_id}")
-        run_generator = updated_runner.run_async(
-            user_id=user_id,
-            session_id=session_id,
-            new_message=initial_message
-        )
+        api_logger.info(f"run_async 호출 전 - 세션 ID 유형: {type(session_id).__name__}")
         
-        # 제너레이터 소비
-        async for _ in run_generator:
-            pass
+        try:
+            run_generator = updated_runner.run_async(
+                user_id=user_id,
+                session_id=session_id,
+                new_message=initial_message
+            )
+            api_logger.info(f"run_async 반환 - 제너레이터 유형: {type(run_generator).__name__}")
+            
+            # 제너레이터 소비
+            api_logger.info("제너레이터 소비 시작")
+            async for response in run_generator:
+                api_logger.info(f"제너레이터에서 응답 받음: {type(response).__name__}")
+            api_logger.info("제너레이터 소비 완료")
+        except Exception as e:
+            api_logger.error(f"run_async 또는 제너레이터 소비 중 오류 발생: {str(e)}")
+            raise
 
         # 결과 처리
         active_jobs[job_id]["progress"] = 90
@@ -166,12 +182,20 @@ async def handle_app_generation(job_id: str, app_spec: dict):
 
         # 아티팩트 목록 가져오기
         try:
+            api_logger.info(f"아티팩트 목록 가져오기 시작 - 세션 ID: {session_id_str}")
             # session_id 객체 대신 문자열 변환 시도
             artifacts = artifact_service.list_artifacts(session_id_str)
+            api_logger.info(f"아티팩트 목록 가져오기 성공 - 아티팩트 수: {len(artifacts)}")
         except Exception as e:
             api_logger.warning(f"문자열 세션 ID로 아티팩트 목록 가져오기 실패: {str(e)}")
             # 원본 세션 ID로 다시 시도
-            artifacts = []
+            try:
+                api_logger.info(f"원본 세션 ID로 아티팩트 목록 가져오기 시도 - 세션 ID: {session_id}")
+                artifacts = artifact_service.list_artifacts(session_id)
+                api_logger.info(f"원본 세션 ID로 아티팩트 목록 가져오기 성공 - 아티팩트 수: {len(artifacts)}")
+            except Exception as e2:
+                api_logger.error(f"원본 세션 ID로도 아티팩트 목록 가져오기 실패: {str(e2)}")
+                artifacts = []
 
         active_jobs[job_id]["status"] = "completed"
         active_jobs[job_id]["progress"] = 100
