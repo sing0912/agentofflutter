@@ -350,11 +350,20 @@ async def download_artifact(job_id: str, artifact_name: str):
 
     try:
         # 아티팩트 로드
-        artifact = artifact_service.load_artifact(session_id, artifact_name)
-        if artifact is None:
+        try:
+            artifact = artifact_service.load_artifact(
+                session_id, artifact_name
+            )
+            if artifact is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"아티팩트 {artifact_name}을 로드할 수 없습니다."
+                )
+        except Exception as e:
+            api_logger.warning(f"아티팩트 로드 실패: {str(e)}")
             raise HTTPException(
-                status_code=404,
-                detail=f"아티팩트 {artifact_name}을 로드할 수 없습니다."
+                status_code=500,
+                detail=f"아티팩트 로드 실패: {str(e)}"
             )
 
         # 파일 타입 결정
@@ -378,6 +387,8 @@ async def download_artifact(job_id: str, artifact_name: str):
             headers={"Content-Disposition": content_disposition}
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error(f"아티팩트 다운로드 중 오류 발생: {str(e)}")
         raise HTTPException(
@@ -464,6 +475,8 @@ async def download_zip(job_id: str):
             }
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         api_logger.error(f"ZIP 파일 생성 중 오류 발생: {str(e)}")
         raise HTTPException(
