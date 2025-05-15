@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 from google.adk import Runner
 from google.genai.types import Content
 from src.config.settings import get_agent_config
-from src.utils.logger import init_logger
+from src.utils.logger import setup_logger
 
 from google.adk.runners import Runner
 from google.adk.artifacts import InMemoryArtifactService
