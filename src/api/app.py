@@ -127,8 +127,11 @@ async def handle_app_generation(job_id: str, app_spec: dict):
         )
 
         # 세션 생성
-        session_id = session_service.create_session()
         user_id = str(uuid.uuid4())
+        session_id = session_service.create_session(
+            app_name="AgentOfFlutter",
+            user_id=user_id
+        )
 
         # 세션 ID 저장
         active_jobs[job_id]["session_id"] = session_id
