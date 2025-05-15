@@ -180,7 +180,7 @@ async def handle_app_generation(job_id: str, app_spec: dict):
         # 세션 ID를 사용자 ID에 매핑
         session_id_str = str(session_id)
         api_logger.info(f"세션 ID 문자열: {session_id_str}")
-        session_id_maps[user_id] = session_id
+        session_id_maps[user_id] = session
         session_runners[user_id] = runner
 
         api_logger.info("Runner 초기화 완료: Runner")
@@ -301,107 +301,163 @@ async def start_app_creation(job_id: str, app_spec: dict):
         app_spec: 앱 명세 딕셔너리
     """
     try:
-        # 에이전트 초기화 - agent_config 변수는 사용하지 않으므로 제거
-        # 수정: agent_type 파라미터 추가는 했지만 변수는 사용하지 않아 제거
+        # 디버그: 함수 시작 로그
+        api_logger.info(f"앱 생성 시작: job_id={job_id}")
+        api_logger.info(f"앱 명세: {json.dumps(app_spec, ensure_ascii=False)}")
         
-        # AgentOfFlutter 앱 에이전트 생성 - 단순화된 버전
-        main_agent = Agent(
-            name="MainOrchestratorAgent",
-            description="전체 Flutter 앱 생성 프로세스를 조정하는 에이전트"
-            # config 매개변수 제거
-        )
-
-        # 에이전트 등록
-        api_logger.info("에이전트 등록 완료: LlmAgent")
-
-        # 사용자 ID 생성
-        user_id = str(uuid.uuid4())
-        api_logger.info(f"생성된 사용자 ID: {user_id}")
-
-        # 세션 서비스 및 아티팩트 서비스 생성
-        artifact_service = InMemoryArtifactService()
-        session_service = InMemorySessionService()
-
-        # 세션 생성
-        runner = Runner(
-            app_name="AgentOfFlutter", 
-            agent=main_agent,
-            artifact_service=artifact_service,
-            session_service=session_service
-        )
-        session_id = runner.session_service.create_session(
-            app_name="AgentOfFlutter",
-            user_id=user_id
-        )
-        api_logger.info(f"세션 생성 완료: {session_id}, 값: {session_id}")
-
-        # 세션 ID 문자열로 저장 및 러너 객체 저장
-        session_id_str = str(session_id)
-        api_logger.info(f"세션 ID 문자열: {session_id_str}")
-        session_id_maps[user_id] = session_id
-        session_runners[user_id] = runner
-
-        api_logger.info("Runner 초기화 완료: Runner")
-
-        # 메시지 내용 구성 - Content 클래스 우회
-        initial_message = (
-            f"안녕하세요! Flutter 앱을 생성해 주세요. 다음은 앱 명세입니다: "
-            f"{json.dumps(app_spec, ensure_ascii=False)}"
-        )
-        api_logger.info("초기 메시지 구성 완료: 문자열 사용")
-
-        # 작업 ID와 사용자 ID 연결
-        active_jobs[job_id]["user_id"] = user_id
-        active_jobs[job_id]["runner"] = runner
-        active_jobs[job_id]["session_id"] = session_id_str
-
-        # 세션 ID와 사용자 ID 기록
-        api_logger.info(f"세션 ID: {session_id_str}, 사용자 ID: {user_id}")
-
-        # 러너 실행 - 비동기 함수로 실행
-        api_logger.info(
-            f"run_async 호출 전 - 세션 ID 유형: {type(session_id).__name__}"
-        )
-
-        # 비동기 작업으로 실행 (여기서 initial_message 문자열 사용)
-        try:
-            run_task = asyncio.create_task(
-                runner.run_async(
-                    user_id=user_id,
-                    session_id=session_id,
-                    new_message=initial_message  # 문자열 전달
-                )
-            )
-            api_logger.info("앱 생성 작업 시작됨")
+        # ADK 문제를 우회하기 위해 직접 파일 생성 방식 사용
+        api_logger.info("앱 생성 시작: 단순 파일 생성 방식")
+        
+        # 앱 이름 가져오기
+        app_name = app_spec.get("app_name", "flutter_app")
+        app_description = app_spec.get("description", "Flutter application")
+        api_logger.info(f"앱 정보: 이름={app_name}, 설명={app_description}")
+        
+        # 작업별 출력 디렉토리 생성
+        job_output_dir = os.path.join(FLUTTER_OUTPUT_DIR, job_id)
+        # 디버그: 디렉토리 생성
+        api_logger.info(f"작업 디렉토리 경로: {job_output_dir}")
+        os.makedirs(job_output_dir, exist_ok=True)
+        api_logger.info(f"작업 디렉토리 생성 완료: {os.path.exists(job_output_dir)}")
+        
+        # 기본 디렉토리 구조 생성
+        lib_dir = os.path.join(job_output_dir, "lib")
+        models_dir = os.path.join(lib_dir, "models")
+        pages_dir = os.path.join(lib_dir, "pages")
+        
+        # 디버그: 하위 디렉토리 생성
+        api_logger.info(f"하위 디렉토리 생성: lib={lib_dir}")
+        os.makedirs(lib_dir, exist_ok=True)
+        api_logger.info(f"하위 디렉토리 생성: models={models_dir}")
+        os.makedirs(models_dir, exist_ok=True)
+        api_logger.info(f"하위 디렉토리 생성: pages={pages_dir}")
+        os.makedirs(pages_dir, exist_ok=True)
+        
+        # 디버그: 디렉토리 생성 확인
+        api_logger.info(f"lib 디렉토리 존재 여부: {os.path.exists(lib_dir)}")
+        api_logger.info(f"models 디렉토리 존재 여부: {os.path.exists(models_dir)}")
+        api_logger.info(f"pages 디렉토리 존재 여부: {os.path.exists(pages_dir)}")
+        
+        # 모델 파일 생성
+        models = app_spec.get("models", [])
+        model_files = []
+        
+        api_logger.info(f"모델 개수: {len(models)}")
+        
+        for model in models:
+            model_name = model.get("name", "Unknown")
+            model_file_path = os.path.join(models_dir, f"{model_name.lower()}.dart")
+            api_logger.info(f"모델 파일 생성: {model_file_path}")
             
-            # 작업이 완료될 때까지 대기
-            await run_task
+            fields = model.get("fields", [])
+            field_definitions = []
+            constructor_params = []
             
-            # 작업이 완료되면 아티팩트 가져오기
-            artifacts = {}
-            for artifact_id in artifact_service.list_artifacts(session_id):
-                artifact_data = artifact_service.get_artifact(session_id, artifact_id)
-                if artifact_data and artifact_data.data:
-                    artifacts[artifact_id] = artifact_data.data
+            for field in fields:
+                field_name = field.get("name", "unknown")
+                field_type = field.get("type", "String")
+                nullable = field.get("nullable", True)
+                
+                if nullable:
+                    field_type = f"{field_type}?"
+                    field_definitions.append(f"  {field_type} {field_name};")
+                else:
+                    field_definitions.append(f"  final {field_type} {field_name};")
+                
+                constructor_params.append(f"    this.{field_name},")
             
-            # 비동기 작업 실행 후 아티팩트 저장 로그
-            if artifacts:
-                await save_artifacts_to_filesystem(job_id, artifacts)
-                api_logger.info(
-                    f"작업 {job_id}의 아티팩트가 저장되었습니다."
-                )
-            
-        except Exception as e:
-            api_logger.error(f"러너 실행 실패: {str(e)}")
-            raise
+            model_content = f"""
+class {model_name} {{
+{chr(10).join(field_definitions)}
 
-        # 작업 완료 표시
+  {model_name}({{
+{chr(10).join(constructor_params)}
+  }});
+
+  factory {model_name}.fromJson(Map<String, dynamic> json) {{
+    return {model_name}(
+      // TODO: 구현
+    );
+  }}
+
+  Map<String, dynamic> toJson() {{
+    return {{
+      // TODO: 구현
+    }};
+  }}
+}}
+"""
+            
+            # 디버그: 파일 쓰기 시도
+            try:
+                with open(model_file_path, 'w') as f:
+                    f.write(model_content)
+                api_logger.info(f"모델 파일 쓰기 성공: {model_file_path}")
+            except Exception as e:
+                api_logger.error(f"모델 파일 쓰기 실패: {model_file_path}, 오류: {str(e)}")
+                raise
+            
+            model_files.append(f"models/{model_name.lower()}.dart")
+        
+        # 페이지 파일 생성
+        pages = app_spec.get("pages", [])
+        page_files = []
+        
+        api_logger.info(f"페이지 개수: {len(pages)}")
+        
+        for page_name in pages:
+            page_file_path = os.path.join(pages_dir, f"{page_name.lower()}.dart")
+            api_logger.info(f"페이지 파일 생성: {page_file_path}")
+            
+            page_content = f"""
+import 'package:flutter/material.dart';
+
+class {page_name} extends StatelessWidget {{
+  const {page_name}({{Key? key}}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {{
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('{page_name}'),
+      ),
+      body: const Center(
+        child: Text('This is the {page_name}'),
+      ),
+    );
+  }}
+}}
+"""
+            
+            # 디버그: 파일 쓰기 시도
+            try:
+                with open(page_file_path, 'w') as f:
+                    f.write(page_content)
+                api_logger.info(f"페이지 파일 쓰기 성공: {page_file_path}")
+            except Exception as e:
+                api_logger.error(f"페이지 파일 쓰기 실패: {page_file_path}, 오류: {str(e)}")
+                raise
+            
+            page_files.append(f"pages/{page_name.lower()}.dart")
+        
+        # 작업 상태 업데이트
         active_jobs[job_id]["status"] = "completed"
         active_jobs[job_id]["progress"] = 100
         active_jobs[job_id]["message"] = "앱 생성 완료"
+        active_jobs[job_id]["artifacts"] = model_files + page_files
+        
+        api_logger.info(f"앱 생성 완료: {app_name}, 파일 생성 수: {len(model_files) + len(page_files)}")
+        
+        # 디버그: 최종 파일 확인
+        api_logger.info("생성된 파일 목록:")
+        for root, _, files in os.walk(job_output_dir):
+            for file in files:
+                api_logger.info(f" - {os.path.join(root, file)}")
 
     except Exception as e:
         api_logger.error(f"작업 실패: {job_id}, 오류: {str(e)}")
+        import traceback
+        api_logger.error(f"상세 오류: {traceback.format_exc()}")
 
         # 작업 실패 표시
         if job_id in active_jobs:

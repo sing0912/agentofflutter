@@ -15,7 +15,9 @@ TEMPLATES_DIR = BASE_DIR / "src" / "templates"
 ARTIFACTS_DIR = BASE_DIR / "src" / "artifacts"
 
 # ADK 설정
-ADK_API_KEY = os.getenv("ADK_API_KEY", "")
+ADK_API_KEY = os.getenv(
+    "ADK_API_KEY", "AIzaSyA8NRAKPcQuVKL936lsoMVdlz2rpQh9Mgo"
+)
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gemini-1.5-flash")
 
 # API 서버 설정
@@ -48,7 +50,7 @@ FLUTTER_OUTPUT_DIR = os.getenv(
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 
-def get_agent_config(agent_type: str) -> Dict[str, Any]:
+def get_agent_config(agent_type: str = "default") -> Dict[str, Any]:
     """특정 에이전트 유형에 대한 설정을 반환합니다."""
     base_config = {
         "model": DEFAULT_MODEL,
@@ -68,11 +70,19 @@ def get_agent_config(agent_type: str) -> Dict[str, Any]:
         },
         "security_agent": {
             "temperature": 0.1,
+        },
+        "default": {
+            "temperature": 0.2,
         }
     }
 
     # 기본 설정에 에이전트별 설정을 병합
     if agent_type in agent_specific_config:
+        for key, value in agent_specific_config[agent_type].items():
+            base_config[key] = value
+    else:
+        # agent_type이 없을 경우 기본 설정 사용
+        agent_type = "default"
         for key, value in agent_specific_config[agent_type].items():
             base_config[key] = value
 
