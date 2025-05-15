@@ -262,12 +262,20 @@ async def start_flutter_app_creation(request: Request):
     """
     try:
         app_spec = await request.json()
-
+        
+        # 앱 이름 및 버전 정보 생성
+        app_name = app_spec.get("app_name", "flutter_app")
+        app_version = f"v{int(time.time()) % 10000}"
+        folder_name = f"App_{app_name}_{app_version}"
+        
+        # 고유 작업 ID 생성
         job_id = str(uuid.uuid4())
 
         # 작업 상태 초기화 - job_id 필드 추가
         active_jobs[job_id] = {
             "job_id": job_id,  # job_id 필드 명시적 추가
+            "folder_name": folder_name,  # 폴더명 저장
+            "app_spec": app_spec,  # 앱 명세 저장
             "status": "pending",
             "progress": 0,
             "message": "작업 초기화 중...",
@@ -283,7 +291,8 @@ async def start_flutter_app_creation(request: Request):
             "status": active_jobs[job_id]["status"],
             "progress": active_jobs[job_id]["progress"],
             "message": active_jobs[job_id]["message"],
-            "artifacts": active_jobs[job_id]["artifacts"]
+            "artifacts": active_jobs[job_id]["artifacts"],
+            "folder_name": folder_name
         }
 
     except Exception as e:
