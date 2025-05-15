@@ -2,6 +2,39 @@
 
 ADK(Agent Development Kit) 기반 다중 에이전트 시스템을 활용한 Flutter 애플리케이션 자동 생성 프로젝트입니다.
 
+## 환경 설정
+
+이 프로젝트는 다음 환경 변수를 사용합니다. `.env` 파일을 생성하고 아래 설정을 추가하세요:
+
+```
+# ADK 설정
+ADK_API_KEY=your_adk_api_key
+DEFAULT_MODEL=gemini-1.5-flash
+
+# API 서버 설정
+API_HOST=0.0.0.0
+API_PORT=8000
+API_DEBUG=false
+
+# 데이터베이스 설정
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=flutter_agent
+
+# Redis 설정
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+
+# Flutter 프로젝트 설정
+FLUTTER_OUTPUT_DIR=./output
+
+# 로깅 설정
+LOG_LEVEL=INFO
+```
+
 ## 개요
 
 이 프로젝트는 Google Agent Development Kit(ADK)를 활용하여 정교한 다중 에이전트 시스템을 구축하고, 이를 통해 Flutter 기반 모바일 애플리케이션(Android 및 iOS 지원)을 자동 생성합니다. 각 에이전트는 단일 코드 파일을 생성하도록 책임을 할당받으며, 이러한 에이전트들은 기능별 그룹(웹뷰, API, 모델, 컨트롤러, TDD, 보안)으로 조직화됩니다.

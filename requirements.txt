@@ -1,13 +1,24 @@
-google-adk>=0.5.0
-fastapi>=0.115.0
-uvicorn>=0.34.0
-jinja2>=3.1.2
-pydantic>=2.9.0
-python-dotenv>=1.0.0
-httpx>=0.28.0
-redis>=5.0.0
-sqlalchemy>=2.0.25
-psycopg2-binary>=2.9.9
-pytest>=7.4.0
-black>=24.0.0
-mypy>=1.8.0 
+# 핵심 의존성
+google-adk==0.5.0
+fastapi==0.115.12
+uvicorn==0.34.2
+jinja2==3.1.6
+pydantic==2.11.4
+python-dotenv==1.1.0
+httpx==0.28.1
+redis==6.1.0
+sqlalchemy==2.0.40
+psycopg2-binary==2.9.10
+
+# ADK 관련 의존성
+google-genai==1.15.0
+google-api-core==2.24.2
+google-api-python-client==2.169.0
+google-auth==2.40.1
+google-cloud-aiplatform==1.92.0
+google-cloud-storage==2.19.0
+
+# 개발 도구
+pytest==8.3.5
+black==25.1.0
+mypy==1.15.0 
