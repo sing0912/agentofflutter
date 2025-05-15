@@ -256,7 +256,7 @@ async def start_app_creation(job_id: str, app_spec: dict):
     """
     try:
         # 에이전트 초기화
-        agent_config = get_agent_config()
+        agent_config = get_agent_config(agent_type="main_agent")
 
         # AgentOfFlutter 앱 에이전트 생성
         main_agent = Agent(
