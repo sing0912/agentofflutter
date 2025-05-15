@@ -19,7 +19,6 @@ from pydantic import BaseModel, Field
 
 from google.adk import Runner, Agent
 from google.genai.types import Content
-from src.config.settings import get_agent_config
 from src.utils.logger import setup_logger
 
 from google.adk.artifacts import InMemoryArtifactService
@@ -256,13 +255,13 @@ async def start_app_creation(job_id: str, app_spec: dict):
     """
     try:
         # 에이전트 초기화
-        agent_config = get_agent_config(agent_type="main_agent")
-
-        # AgentOfFlutter 앱 에이전트 생성
+        # agent_config = get_agent_config(agent_type="main_agent")
+        
+        # AgentOfFlutter 앱 에이전트 생성 - 단순화된 버전
         main_agent = Agent(
             name="MainOrchestratorAgent",
-            description="전체 Flutter 앱 생성 프로세스를 조정하는 에이전트",
-            config=agent_config
+            description="전체 Flutter 앱 생성 프로세스를 조정하는 에이전트"
+            # config 매개변수 제거
         )
 
         # 에이전트 등록
