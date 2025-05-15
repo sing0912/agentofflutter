@@ -288,11 +288,11 @@ async def start_flutter_app_creation(request: Request):
 
         return {
             "job_id": job_id,
+            "folder_name": folder_name,
             "status": active_jobs[job_id]["status"],
             "progress": active_jobs[job_id]["progress"],
             "message": active_jobs[job_id]["message"],
-            "artifacts": active_jobs[job_id]["artifacts"],
-            "folder_name": folder_name
+            "artifacts": active_jobs[job_id]["artifacts"]
         }
 
     except Exception as e:
