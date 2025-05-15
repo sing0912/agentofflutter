@@ -303,6 +303,9 @@ async def start_app_creation(job_id: str, app_spec: dict):
         app_spec: 앱 명세 딕셔너리
     """
     try:
+        # 앱 명세 저장
+        active_jobs[job_id]["app_spec"] = app_spec
+
         # 디버그: 함수 시작 로그
         api_logger.info(f"앱 생성 시작: job_id={job_id}")
         api_logger.info(f"앱 명세: {json.dumps(app_spec, ensure_ascii=False)}")
@@ -314,9 +317,16 @@ async def start_app_creation(job_id: str, app_spec: dict):
         app_name = app_spec.get("app_name", "flutter_app")
         app_description = app_spec.get("description", "Flutter application")
         api_logger.info(f"앱 정보: 이름={app_name}, 설명={app_description}")
+
+        # 앱 버전 및 폴더명 생성
+        app_version = f"v{int(time.time()) % 10000}"  # 현재 시간의 일부를 사용한 버전 정보
+        folder_name = f"App_{app_name}_{app_version}"  # 'App_' 접두사 추가
+        
+        # job_id와 폴더명을 매핑하여 저장
+        active_jobs[job_id]["folder_name"] = folder_name
         
         # 작업별 출력 디렉토리 생성
-        job_output_dir = os.path.join(FLUTTER_OUTPUT_DIR, job_id)
+        job_output_dir = os.path.join(FLUTTER_OUTPUT_DIR, folder_name)
         # 디버그: 디렉토리 생성
         api_logger.info(f"작업 디렉토리 경로: {job_output_dir}")
         os.makedirs(job_output_dir, exist_ok=True)
@@ -809,8 +819,9 @@ async def download_zip(job_id: str):
         )
 
     try:
-        # 작업별 출력 디렉토리 경로
-        job_output_dir = os.path.join(FLUTTER_OUTPUT_DIR, job_id)
+        # 작업별 출력 디렉토리 경로 (folder_name 사용)
+        folder_name = active_jobs[job_id].get("folder_name", job_id)
+        job_output_dir = os.path.join(FLUTTER_OUTPUT_DIR, folder_name)
 
         # 디렉토리가 존재하는지 확인
         if not os.path.exists(job_output_dir):
@@ -823,6 +834,7 @@ async def download_zip(job_id: str):
         # 앱 이름 가져오기 (있는 경우)
         app_spec = active_jobs[job_id].get("app_spec", {})
         app_name = app_spec.get("app_name", "flutter_app")
+        app_version = folder_name.split('_')[-1] if '_' in folder_name else ""
 
         # 임시 메모리 버퍼에 ZIP 파일 생성
         buffer = io.BytesIO()
@@ -838,8 +850,8 @@ async def download_zip(job_id: str):
         # 버퍼 위치를 시작으로 재설정
         buffer.seek(0)
 
-        # ZIP 파일 이름 설정
-        filename = f"{app_name}.zip"
+        # ZIP 파일 이름 설정 (앱 이름과 버전 사용)
+        filename = f"App_{app_name}_{app_version}.zip"
 
         # 파일 다운로드 응답 반환
         return StreamingResponse(
