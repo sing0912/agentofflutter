@@ -136,7 +136,8 @@ async def handle_app_generation(job_id: str, app_spec: dict):
             app_name="AgentOfFlutter",
             user_id=user_id
         )
-        api_logger.info(f"세션 생성 완료: {type(session_id).__name__}, 값: {session_id}")
+        type_name = type(session_id).__name__
+        api_logger.info(f"세션 생성 완료: {type_name}, 값: {session_id}")
 
         # 세션 ID를 문자열로 저장
         session_id_str = str(session_id)
@@ -157,7 +158,7 @@ async def handle_app_generation(job_id: str, app_spec: dict):
 
         # 에이전트 실행
         api_logger.info(f"세션 ID: {session_id_str}, 사용자 ID: {user_id}")
-        api_logger.info(f"run_async 호출 전 - 세션 ID 유형: {type(session_id).__name__}")
+        api_logger.info(f"run_async 호출 전 - 세션 ID 유형: {type_name}")
         
         try:
             run_generator = updated_runner.run_async(
@@ -165,7 +166,8 @@ async def handle_app_generation(job_id: str, app_spec: dict):
                 session_id=session_id,
                 new_message=initial_message
             )
-            api_logger.info(f"run_async 반환 - 제너레이터 유형: {type(run_generator).__name__}")
+            gen_type = type(run_generator).__name__
+            api_logger.info(f"run_async 반환 - 제너레이터 유형: {gen_type}")
             
             # 제너레이터 소비
             api_logger.info("제너레이터 소비 시작")
@@ -190,9 +192,15 @@ async def handle_app_generation(job_id: str, app_spec: dict):
             api_logger.warning(f"문자열 세션 ID로 아티팩트 목록 가져오기 실패: {str(e)}")
             # 원본 세션 ID로 다시 시도
             try:
-                api_logger.info(f"원본 세션 ID로 아티팩트 목록 가져오기 시도 - 세션 ID: {session_id}")
+                api_logger.info(
+                    f"원본 세션 ID로 아티팩트 목록 가져오기 시도 - "
+                    f"세션 ID: {session_id}"
+                )
                 artifacts = artifact_service.list_artifacts(session_id)
-                api_logger.info(f"원본 세션 ID로 아티팩트 목록 가져오기 성공 - 아티팩트 수: {len(artifacts)}")
+                api_logger.info(
+                    f"원본 세션 ID로 아티팩트 목록 가져오기 성공 - "
+                    f"아티팩트 수: {len(artifacts)}"
+                )
             except Exception as e2:
                 api_logger.error(f"원본 세션 ID로도 아티팩트 목록 가져오기 실패: {str(e2)}")
                 artifacts = []
@@ -325,11 +333,19 @@ async def download_artifact(job_id: str, artifact_name: str):
         )
 
     # 아티팩트 존재 여부 확인
-    artifacts = artifact_service.list_artifacts(session_id)
-    if artifact_name not in [str(artifact) for artifact in artifacts]:
+    try:
+        api_logger.info(f"아티팩트 목록 요청 - 세션 ID: {session_id}")
+        artifacts = artifact_service.list_artifacts(session_id)
+        if artifact_name not in [str(artifact) for artifact in artifacts]:
+            raise HTTPException(
+                status_code=404,
+                detail=f"아티팩트 {artifact_name}을 찾을 수 없습니다."
+            )
+    except Exception as e:
+        api_logger.warning(f"아티팩트 목록 가져오기 실패: {str(e)}")
         raise HTTPException(
-            status_code=404,
-            detail=f"아티팩트 {artifact_name}을 찾을 수 없습니다."
+            status_code=500,
+            detail=f"아티팩트 목록 가져오기 실패: {str(e)}"
         )
 
     try:
@@ -404,7 +420,15 @@ async def download_zip(job_id: str):
 
     try:
         # 아티팩트 목록 가져오기
-        artifacts = artifact_service.list_artifacts(session_id)
+        api_logger.info(f"ZIP용 아티팩트 목록 요청 - 세션 ID: {session_id}")
+        try:
+            artifacts = artifact_service.list_artifacts(session_id)
+        except Exception as e:
+            api_logger.warning(f"ZIP용 아티팩트 목록 가져오기 실패: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"아티팩트 목록 가져오기 실패: {str(e)}"
+            )
 
         # 앱 이름 가져오기
         app_spec = job_info.get("app_spec", {})
@@ -416,11 +440,17 @@ async def download_zip(job_id: str):
             zip_buffer, "w", zipfile.ZIP_DEFLATED
         ) as zip_file:
             for artifact_name in artifacts:
-                artifact = artifact_service.load_artifact(
-                    session_id, str(artifact_name)
-                )
-                if artifact:
-                    zip_file.writestr(str(artifact_name), artifact.data)
+                try:
+                    artifact = artifact_service.load_artifact(
+                        session_id, str(artifact_name)
+                    )
+                    if artifact:
+                        zip_file.writestr(str(artifact_name), artifact.data)
+                except Exception as e:
+                    api_logger.warning(
+                        f"아티팩트 로드 실패: {artifact_name}, 오류: {str(e)}"
+                    )
+                    continue
 
         # 파일 포인터를 시작으로 되돌림
         zip_buffer.seek(0)
