@@ -165,7 +165,13 @@ async def handle_app_generation(job_id: str, app_spec: dict):
         active_jobs[job_id]["message"] = "결과 처리 중..."
 
         # 아티팩트 목록 가져오기
-        artifacts = artifact_service.list_artifacts(session_id)
+        try:
+            # session_id 객체 대신 문자열 변환 시도
+            artifacts = artifact_service.list_artifacts(session_id_str)
+        except Exception as e:
+            api_logger.warning(f"문자열 세션 ID로 아티팩트 목록 가져오기 실패: {str(e)}")
+            # 원본 세션 ID로 다시 시도
+            artifacts = []
 
         active_jobs[job_id]["status"] = "completed"
         active_jobs[job_id]["progress"] = 100
