@@ -1,0 +1,16 @@
+{
+  "app_name": "test_flutter_app",
+  "description": "테스트용 Flutter 애플리케이션",
+  "models": [
+    {
+      "name": "User",
+      "fields": [
+        {"name": "id", "type": "String", "nullable": false},
+        {"name": "name", "type": "String", "nullable": false},
+        {"name": "email", "type": "String", "nullable": false},
+        {"name": "createdAt", "type": "DateTime", "nullable": false}
+      ]
+    }
+  ],
+  "pages": ["HomePage", "LoginPage", "ProfilePage"]
+} 
