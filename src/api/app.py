@@ -272,7 +272,12 @@ async def start_app_creation(job_id: str, app_spec: dict):
         api_logger.info(f"생성된 사용자 ID: {user_id}")
 
         # 세션 생성
-        runner = Runner(app_name="AgentOfFlutter", agent=main_agent)
+        runner = Runner(
+            app_name="AgentOfFlutter", 
+            agent=main_agent,
+            artifact_service=InMemoryArtifactService(),
+            session_service=InMemorySessionService()
+        )
         session_id = runner.session_service.create_session(
             app_name="AgentOfFlutter",
             user_id=user_id
