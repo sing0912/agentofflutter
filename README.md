@@ -119,6 +119,229 @@ curl -X POST http://localhost:8000/generate_app \
   }'
 ```
 
+## API 엔드포인트 참조
+
+### 루트 엔드포인트
+
+API 정보와 사용 가능한 모든 엔드포인트를 조회합니다.
+
+**요청**:
+```bash
+curl -X GET http://localhost:8000/
+```
+
+**응답**:
+```json
+{
+  "name": "Agent of Flutter API",
+  "version": "1.0.0",
+  "description": "ADK 기반 Flutter 앱 생성 API",
+  "endpoints": [
+    {
+      "path": "/generate_app",
+      "method": "POST",
+      "description": "Flutter 앱 생성 요청"
+    },
+    {
+      "path": "/job/{job_id}",
+      "method": "GET",
+      "description": "특정 작업 상태 조회"
+    },
+    {
+      "path": "/jobs",
+      "method": "GET",
+      "description": "모든 작업 상태 조회"
+    },
+    {
+      "path": "/download/{job_id}/{artifact_name}",
+      "method": "GET",
+      "description": "특정 아티팩트 다운로드"
+    },
+    {
+      "path": "/download_zip/{job_id}",
+      "method": "GET",
+      "description": "모든 아티팩트를 ZIP으로 다운로드"
+    },
+    {
+      "path": "/status",
+      "method": "GET",
+      "description": "서버 상태 조회"
+    }
+  ]
+}
+```
+
+### Flutter 앱 생성
+
+새로운 Flutter 앱 생성 요청을 처리합니다.
+
+**요청**:
+```bash
+curl -X POST http://localhost:8000/generate_app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "app_name": "shopping_app",
+    "description": "쇼핑몰 모바일 애플리케이션",
+    "models": [
+      {
+        "name": "Product",
+        "fields": [
+          {"name": "id", "type": "String"},
+          {"name": "name", "type": "String"},
+          {"name": "price", "type": "double"},
+          {"name": "description", "type": "String"},
+          {"name": "imageUrl", "type": "String"},
+          {"name": "category", "type": "String"},
+          {"name": "createdAt", "type": "DateTime"}
+        ]
+      },
+      {
+        "name": "Cart",
+        "fields": [
+          {"name": "id", "type": "String"},
+          {"name": "userId", "type": "String"},
+          {"name": "products", "type": "List<CartItem>"},
+          {"name": "totalPrice", "type": "double"},
+          {"name": "updatedAt", "type": "DateTime"}
+        ]
+      },
+      {
+        "name": "CartItem",
+        "fields": [
+          {"name": "productId", "type": "String"},
+          {"name": "quantity", "type": "int"},
+          {"name": "price", "type": "double"}
+        ]
+      }
+    ],
+    "pages": ["HomePage", "ProductDetailPage", "CartPage", "ProfilePage", "CategoryPage"],
+    "features": ["다크 모드", "상품 검색", "카테고리 필터링", "장바구니 기능"]
+  }'
+```
+
+**응답**:
+```json
+{
+  "job_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "pending",
+  "progress": 0,
+  "message": "작업 초기화 중...",
+  "artifacts": []
+}
+```
+
+### 작업 상태 조회
+
+특정 작업의 현재 상태를 조회합니다.
+
+**요청**:
+```bash
+curl -X GET http://localhost:8000/job/550e8400-e29b-41d4-a716-446655440000
+```
+
+**응답**:
+```json
+{
+  "job_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "completed",
+  "progress": 100,
+  "message": "앱 생성 완료",
+  "artifacts": [
+    "models/product.dart",
+    "models/cart.dart",
+    "models/cart_item.dart",
+    "pages/home_page.dart",
+    "pages/product_detail_page.dart",
+    "pages/cart_page.dart",
+    "pages/profile_page.dart",
+    "pages/category_page.dart",
+    "main.dart"
+  ]
+}
+```
+
+### 모든 작업 상태 조회
+
+모든 작업의 상태를 조회합니다.
+
+**요청**:
+```bash
+curl -X GET http://localhost:8000/jobs
+```
+
+**응답**:
+```json
+{
+  "550e8400-e29b-41d4-a716-446655440000": {
+    "job_id": "550e8400-e29b-41d4-a716-446655440000",
+    "status": "completed",
+    "progress": 100,
+    "message": "앱 생성 완료",
+    "artifacts": [
+      "models/product.dart",
+      "models/cart.dart",
+      "models/cart_item.dart",
+      "pages/home_page.dart",
+      "pages/product_detail_page.dart",
+      "pages/cart_page.dart",
+      "pages/profile_page.dart",
+      "pages/category_page.dart",
+      "main.dart"
+    ]
+  },
+  "550e8400-e29b-41d4-a716-446655440001": {
+    "job_id": "550e8400-e29b-41d4-a716-446655440001",
+    "status": "running",
+    "progress": 65,
+    "message": "위젯 파일 생성 중...",
+    "artifacts": []
+  }
+}
+```
+
+### 아티팩트 다운로드
+
+특정 작업에서 생성된 아티팩트 파일을 다운로드합니다.
+
+**요청**:
+```bash
+curl -X GET http://localhost:8000/download/550e8400-e29b-41d4-a716-446655440000/models/product.dart -o product.dart
+```
+
+**응답**: 파일 내용이 직접 반환됩니다.
+
+### ZIP 파일 다운로드
+
+특정 작업에서 생성된 모든 아티팩트를 ZIP 파일로 다운로드합니다.
+
+**요청**:
+```bash
+curl -X GET http://localhost:8000/download_zip/550e8400-e29b-41d4-a716-446655440000 -o shopping_app.zip
+```
+
+**응답**: ZIP 파일이 직접 반환됩니다.
+
+### 서버 상태 조회
+
+서버의 현재 상태를 조회합니다.
+
+**요청**:
+```bash
+curl -X GET http://localhost:8000/status
+```
+
+**응답**:
+```json
+{
+  "status": "running",
+  "version": "1.0.0",
+  "active_jobs": 1,
+  "completed_jobs": 1,
+  "failed_jobs": 0,
+  "uptime": "1:23:45.678901"
+}
+```
+
 ## 프로젝트 구조
 
 ```
