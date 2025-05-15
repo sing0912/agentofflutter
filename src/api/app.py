@@ -120,6 +120,7 @@ async def handle_app_generation(job_id: str, app_spec: dict):
 
         # 업데이트된 에이전트로 런너 재설정
         updated_runner = Runner(
+            app_name="AgentOfFlutter",
             agent=updated_agent,
             artifact_service=artifact_service,
             session_service=session_service,
