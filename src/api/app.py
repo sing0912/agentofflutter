@@ -133,8 +133,9 @@ async def handle_app_generation(job_id: str, app_spec: dict):
             user_id=user_id
         )
 
-        # 세션 ID 저장
-        active_jobs[job_id]["session_id"] = session_id
+        # 세션 ID를 문자열로 저장
+        session_id_str = str(session_id)
+        active_jobs[job_id]["session_id"] = session_id_str
 
         # 초기 메시지 구성
         initial_message = Content(
@@ -148,7 +149,7 @@ async def handle_app_generation(job_id: str, app_spec: dict):
         active_jobs[job_id]["message"] = "앱 생성 시작..."
 
         # 에이전트 실행
-        api_logger.info(f"세션 ID: {session_id}, 사용자 ID: {user_id}")
+        api_logger.info(f"세션 ID: {session_id_str}, 사용자 ID: {user_id}")
         run_generator = updated_runner.run_async(
             user_id=user_id,
             session_id=session_id,
