@@ -61,6 +61,9 @@ runner = Runner(
 # 진행 중인 작업 상태 저장
 active_jobs: Dict[str, Dict[str, Any]] = {}
 
+# 사용자 ID에서 세션 객체로의 매핑을 저장 (Session 객체는 해시 불가능)
+session_id_maps: Dict[str, Any] = {}
+
 
 # 앱 명세 모델
 class AppSpec(BaseModel):
@@ -130,10 +133,13 @@ async def handle_app_generation(job_id: str, app_spec: dict):
         type_name = type(session_id).__name__
         api_logger.info(f"세션 생성 완료: {type_name}, 값: {session_id}")
 
-        # 세션 ID를 문자열로 저장
+        # 세션 ID를 사용자 ID에 매핑
+        session_id_maps[user_id] = session_id
+        api_logger.info(f"세션 ID 맵에 추가: {user_id} -> {session_id}")
+
+        # 세션 ID 문자열도 저장
         session_id_str = str(session_id)
         active_jobs[job_id]["session_id"] = session_id_str
-        active_jobs[job_id]["original_session_id"] = session_id  # 원본 세션 객체도 저장
         active_jobs[job_id]["user_id"] = user_id  # 사용자 ID 저장
         api_logger.info(f"세션 ID 문자열: {session_id_str}")
 
@@ -163,48 +169,46 @@ async def handle_app_generation(job_id: str, app_spec: dict):
 
         # 에이전트 실행
         api_logger.info(f"세션 ID: {session_id_str}, 사용자 ID: {user_id}")
-        api_logger.info(f"run_async 호출 전 - 세션 ID 유형: {type_name}")
+        api_logger.info(f"Run 호출 전 - 세션 ID 유형: {type_name}")
         
         try:
-            # 직접 run() 메서드 사용 - 비동기 제너레이터를 회피
+            # 직접 run() 메서드 사용
             api_logger.info("run 메서드 직접 호출")
             response = updated_runner.run(
                 user_id=user_id,
-                session_id=session_id,  # 원본 세션 객체 사용
+                session_id=session_id,  # 매핑에서 가져온 세션 객체 사용
                 new_message=initial_message
             )
             api_logger.info(f"run 메서드 반환 - 응답 유형: {type(response).__name__}")
         except Exception as e:
             api_logger.error(f"run 메서드 호출 중 오류 발생: {str(e)}")
-            # 주요 오류에 대한 자세한 로깅 추가
             if "unhashable type: 'Session'" in str(e):
                 api_logger.error(
-                    "Session 객체가 해시 불가능 타입입니다. dict에 키로 사용할 수 없습니다."
+                    "Session 객체가 해시 불가능 타입입니다. 수동 재시도..."
                 )
-                # 문자열 대신 세션 ID 사용 시도
+                # 수동으로 해결 시도
                 try:
-                    # 세션 ID 문자열로 변환하여 저장
-                    api_logger.info("세션 ID 문자열 변환 후 재시도")
-                    # 세션을 새로 만들어서 시도
+                    # 새 세션 생성
+                    new_user_id = f"{user_id}_new"
                     new_session_id = session_service.create_session(
                         app_name="AgentOfFlutter",
-                        user_id=user_id
+                        user_id=new_user_id
                     )
-                    active_jobs[job_id]["session_id"] = str(new_session_id)
-                    active_jobs[job_id]["original_session_id"] = new_session_id
+                    session_id_maps[new_user_id] = new_session_id
+                    active_jobs[job_id]["user_id"] = new_user_id
                     
                     # 새 세션으로 다시 시도
                     response = updated_runner.run(
-                        user_id=user_id,
+                        user_id=new_user_id,
                         session_id=new_session_id,
                         new_message=initial_message
                     )
                     api_logger.info("세션 재생성 후 성공!")
                 except Exception as inner_e:
-                    api_logger.error(f"세션 재생성 후에도 실패: {str(inner_e)}")
-                    raise inner_e
+                    api_logger.error(f"수동 재시도 실패: {str(inner_e)}")
+                    raise
             else:
-                raise e
+                raise
 
         # 결과 처리
         active_jobs[job_id]["progress"] = 90
@@ -212,30 +216,39 @@ async def handle_app_generation(job_id: str, app_spec: dict):
 
         # 아티팩트 목록 가져오기
         try:
-            api_logger.info(f"아티팩트 목록 가져오기 시작 - 세션 ID: {session_id}")
-            # 세션 ID 객체 사용 시도
-            try:
-                artifacts = artifact_service.list_artifacts(session_id)
-            except TypeError as type_error:
-                # TypeError가 발생하면 session_id로 다시 시도
-                api_logger.warning(
-                    f"원본 세션 ID로 아티팩트 가져오기 실패: {str(type_error)}"
-                )
-                
-                # 세션을 다시 가져와서 시도
-                new_session = session_service.get_session(user_id)
-                if new_session:
-                    api_logger.info(
-                        f"사용자 ID로 세션 다시 가져옴: {user_id}"
-                    )
-                    artifacts = artifact_service.list_artifacts(new_session)
-                else:
+            # 세션 객체 가져오기
+            user_id = active_jobs[job_id]["user_id"]
+            session = session_id_maps.get(user_id)
+            
+            if not session:
+                api_logger.warning(f"세션 맵에서 세션을 찾을 수 없음: {user_id}")
+                # 세션 서비스에서 직접 가져오기 시도
+                try:
+                    session = session_service.get_session(user_id)
+                    if session:
+                        session_id_maps[user_id] = session
+                        api_logger.info(f"세션 서비스에서 세션 복구 성공: {user_id}")
+                except Exception as sess_e:
                     api_logger.error(
-                        f"사용자 ID로 세션을 찾을 수 없음: {user_id}"
+                        f"세션 서비스에서 세션 가져오기 실패: {str(sess_e)}"
+                    )
+            
+            if session:
+                api_logger.info("아티팩트 목록 가져오기 시작 - 세션: {0}".format(session))
+                try:
+                    artifacts = artifact_service.list_artifacts(session)
+                    api_logger.info(
+                        f"아티팩트 목록 가져오기 성공 - 아티팩트 수: {len(artifacts)}"
+                    )
+                except Exception as art_e:
+                    api_logger.error(
+                        f"아티팩트 목록 가져오기 실패: {str(art_e)}"
                     )
                     artifacts = []
-            
-            api_logger.info(f"아티팩트 목록 가져오기 성공 - 아티팩트 수: {len(artifacts)}")
+            else:
+                api_logger.error("세션을 찾을 수 없음, 빈 목록 반환")
+                artifacts = []
+                
         except Exception as e:
             api_logger.warning(f"아티팩트 목록 가져오기 실패: {str(e)}")
             # 빈 목록으로 계속 진행
@@ -362,32 +375,40 @@ async def download_artifact(job_id: str, artifact_name: str):
         )
 
     try:
-        # 세션 ID 가져오기 시도
-        session_id = job_info.get("original_session_id")
+        # 세션 객체 가져오기
         user_id = job_info.get("user_id")
+        if not user_id:
+            raise HTTPException(
+                status_code=500,
+                detail="작업에 사용자 ID가 없습니다."
+            )
         
-        if session_id is None and user_id:
-            # 사용자 ID로 세션 찾기 시도
+        # 세션 맵에서 세션 객체 가져오기
+        session = session_id_maps.get(user_id)
+        if not session:
+            # 세션 서비스에서 직접 가져오기 시도
             try:
-                session_id = session_service.get_session(user_id)
-                api_logger.info(f"사용자 ID로 세션 찾음: {user_id}")
+                session = session_service.get_session(user_id)
+                if session:
+                    # 세션 맵에 저장
+                    session_id_maps[user_id] = session
+                    api_logger.info(f"세션 서비스에서 세션 가져옴: {user_id}")
+                else:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"사용자 ID {user_id}에 대한 세션을 찾을 수 없습니다."
+                    )
             except Exception as e:
-                api_logger.warning(f"사용자 ID로 세션 찾기 실패: {str(e)}")
-        
-        if not session_id:
-            # 세션 ID 문자열 사용
-            session_id_str = job_info.get("session_id")
-            if not session_id_str:
+                api_logger.error(f"세션 가져오기 실패: {str(e)}")
                 raise HTTPException(
                     status_code=500,
-                    detail="세션 ID를 찾을 수 없습니다."
+                    detail=f"세션 가져오기 실패: {str(e)}"
                 )
-            api_logger.warning(f"세션 객체 없음, 문자열 사용: {session_id_str}")
 
         # 아티팩트 존재 여부 확인
         try:
-            api_logger.info(f"아티팩트 목록 요청 - 세션 ID: {session_id}")
-            artifacts = artifact_service.list_artifacts(session_id)
+            api_logger.info("아티팩트 목록 요청 - 세션: {0}".format(session))
+            artifacts = artifact_service.list_artifacts(session)
             if artifact_name not in [str(artifact) for artifact in artifacts]:
                 raise HTTPException(
                     status_code=404,
@@ -403,7 +424,7 @@ async def download_artifact(job_id: str, artifact_name: str):
         # 아티팩트 로드
         try:
             artifact = artifact_service.load_artifact(
-                session_id, artifact_name
+                session, artifact_name
             )
             if artifact is None:
                 raise HTTPException(
@@ -474,32 +495,40 @@ async def download_zip(job_id: str):
         )
 
     try:
-        # 세션 ID 가져오기 시도
-        session_id = job_info.get("original_session_id")
+        # 세션 객체 가져오기
         user_id = job_info.get("user_id")
+        if not user_id:
+            raise HTTPException(
+                status_code=500,
+                detail="작업에 사용자 ID가 없습니다."
+            )
         
-        if session_id is None and user_id:
-            # 사용자 ID로 세션 찾기 시도
+        # 세션 맵에서 세션 객체 가져오기
+        session = session_id_maps.get(user_id)
+        if not session:
+            # 세션 서비스에서 직접 가져오기 시도
             try:
-                session_id = session_service.get_session(user_id)
-                api_logger.info(f"사용자 ID로 세션 찾음: {user_id}")
+                session = session_service.get_session(user_id)
+                if session:
+                    # 세션 맵에 저장
+                    session_id_maps[user_id] = session
+                    api_logger.info(f"세션 서비스에서 세션 가져옴: {user_id}")
+                else:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"사용자 ID {user_id}에 대한 세션을 찾을 수 없습니다."
+                    )
             except Exception as e:
-                api_logger.warning(f"사용자 ID로 세션 찾기 실패: {str(e)}")
-        
-        if not session_id:
-            # 세션 ID 문자열 사용
-            session_id_str = job_info.get("session_id")
-            if not session_id_str:
+                api_logger.error(f"세션 가져오기 실패: {str(e)}")
                 raise HTTPException(
                     status_code=500,
-                    detail="세션 ID를 찾을 수 없습니다."
+                    detail=f"세션 가져오기 실패: {str(e)}"
                 )
-            api_logger.warning(f"세션 객체 없음, 문자열 사용: {session_id_str}")
 
         # 아티팩트 목록 가져오기
-        api_logger.info(f"ZIP용 아티팩트 목록 요청 - 세션 ID: {session_id}")
+        api_logger.info("ZIP용 아티팩트 목록 요청 - 세션: {0}".format(session))
         try:
-            artifacts = artifact_service.list_artifacts(session_id)
+            artifacts = artifact_service.list_artifacts(session)
         except Exception as e:
             api_logger.warning(f"ZIP용 아티팩트 목록 가져오기 실패: {str(e)}")
             raise HTTPException(
@@ -519,7 +548,7 @@ async def download_zip(job_id: str):
             for artifact_name in artifacts:
                 try:
                     artifact = artifact_service.load_artifact(
-                        session_id, str(artifact_name)
+                        session, str(artifact_name)
                     )
                     if artifact:
                         zip_file.writestr(str(artifact_name), artifact.data)
