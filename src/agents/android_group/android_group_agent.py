@@ -276,14 +276,17 @@ class MainActivity: FlutterActivity() {{
             mime_type="text/x-kotlin"
         )
         
+        dir_path = f"android/app/src/main/kotlin/com/example/{app_name_slug}"
+        filepath = f"{dir_path}/MainActivity.kt"
+        
         tool_context.save_artifact(
-            filename=f"android/app/src/main/kotlin/com/example/{app_name_slug}/MainActivity.kt",
+            filename=filepath,
             artifact=main_activity_part
         )
         
         return {
             "success": True,
-            "file": f"android/app/src/main/kotlin/com/example/{app_name_slug}/MainActivity.kt",
+            "file": filepath,
             "message": "안드로이드 MainActivity.kt 파일 생성 완료"
         }
         

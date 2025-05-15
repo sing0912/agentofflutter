@@ -3,23 +3,30 @@ FastAPI 서버 구현.
 
 이 모듈은 Flutter 앱 생성을 위한 FastAPI 서버를 구현합니다.
 """
-import io
-import uuid
+import asyncio
 import json
+import time
+import uuid
+import os
+import io
 import zipfile
 import traceback
 from typing import Dict, Any, Optional
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
+
+from google.adk import Runner
+from google.genai.types import Content
+from src.config.settings import get_agent_config
+from src.utils.logger import init_logger
 
 from google.adk.runners import Runner
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.sessions import InMemorySessionService
-from google.genai.types import Content
 
 from src.config.settings import API_HOST, API_PORT, API_DEBUG
 from src.agents.main_orchestrator_agent import (
@@ -330,46 +337,115 @@ async def handle_app_generation(job_id: str, app_spec: dict):
         api_logger.error(f"작업 실패: {job_id}, 오류: {str(e)}")
 
 
-@app.post("/generate_app", response_model=JobStatus)
-async def generate_app(app_spec: AppSpec, background_tasks: BackgroundTasks):
+@app.post("/generate_app")
+async def start_flutter_app_creation(request: Request):
     """
-    새로운 Flutter 앱 생성 작업을 시작합니다.
-
-    Args:
-        app_spec: 앱 명세 데이터
-        background_tasks: 백그라운드 작업 객체
-
-    Returns:
-        작업 ID와 초기 상태를 포함하는 JobStatus 객체
+    Flutter 앱 생성 작업을 시작합니다.
+    
+    Request body는 앱 명세를 포함해야 합니다.
     """
     try:
-        # 작업 ID 생성
+        app_spec = await request.json()
+        
         job_id = str(uuid.uuid4())
-
-        # 초기 작업 상태 설정
+        
+        # 작업 상태 초기화
         active_jobs[job_id] = {
-            "job_id": job_id,
             "status": "pending",
             "progress": 0,
             "message": "작업 초기화 중...",
             "artifacts": [],
-            "created_at": datetime.now().isoformat()
+            "start_time": time.time()
         }
-
-        # 백그라운드 작업으로 처리
-        background_tasks.add_task(
-            handle_app_generation,
-            job_id,
-            app_spec.dict()
-        )
-
-        return JobStatus(**active_jobs[job_id])
+        
+        # 백그라운드 작업으로 앱 생성 실행
+        asyncio.create_task(start_app_creation(job_id, app_spec))
+        
+        return {
+            "job_id": job_id,
+            "status": active_jobs[job_id]["status"],
+            "progress": active_jobs[job_id]["progress"],
+            "message": active_jobs[job_id]["message"],
+            "artifacts": active_jobs[job_id]["artifacts"]
+        }
+        
     except Exception as e:
         api_logger.error(f"앱 생성 요청 처리 중 오류 발생: {str(e)}")
-        raise HTTPException(
+        return JSONResponse(
             status_code=500,
-            detail=f"앱 생성 요청 처리 중 오류 발생: {str(e)}"
+            content={"error": f"앱 생성 시작 중 오류 발생: {str(e)}"}
         )
+
+
+async def start_app_creation(job_id: str, app_spec: dict):
+    """
+    Flutter 앱 생성 프로세스를 시작합니다.
+    
+    Args:
+        job_id: 작업 ID
+        app_spec: 앱 명세 딕셔너리
+    """
+    try:
+        # 에이전트 초기화
+        agent_config = get_agent_config()
+        
+        # AgentOfFlutter 앱 에이전트 생성
+        main_agent = Agent(
+            name="MainOrchestratorAgent",
+            description="전체 Flutter 앱 생성 프로세스를 조정하는 에이전트",
+            config=agent_config
+        )
+        
+        # 에이전트 등록
+        api_logger.info("에이전트 등록 완료: LlmAgent")
+        
+        # 사용자 ID 생성
+        user_id = str(uuid.uuid4())
+        api_logger.info(f"생성된 사용자 ID: {user_id}")
+        
+        # 세션 생성
+        runner = Runner(app_name="AgentOfFlutter")
+        session_id = runner.session_service.create_session(
+            app_name="AgentOfFlutter",
+            user_id=user_id
+        )
+        api_logger.info(f"세션 생성 완료: {session_id}, 값: {session_id}")
+        
+        # 세션 ID 문자열로 저장 및 러너 객체 저장
+        session_id_str = str(session_id)
+        api_logger.info(f"세션 ID 문자열: {session_id_str}")
+        session_id_maps[user_id] = session_id
+        session_runners[user_id] = runner
+        
+        api_logger.info("Runner 초기화 완료: Runner")
+        
+        # 초기 메시지 내용 구성
+        initial_message = Content.text(f"안녕하세요! Flutter 앱을 생성해 주세요. 다음은 앱 명세입니다: {json.dumps(app_spec, ensure_ascii=False)}")
+        api_logger.info("초기 메시지 구성 완료: Content")
+        
+        # 작업 ID와 사용자 ID 연결
+        active_jobs[job_id]["user_id"] = user_id
+        active_jobs[job_id]["runner"] = runner
+        active_jobs[job_id]["session_id"] = session_id_str
+        
+        # 세션 ID와 사용자 ID 기록
+        api_logger.info(f"세션 ID: {session_id_str}, 사용자 ID: {user_id}")
+        
+        # 러너 실행 - 비동기 함수로 실행
+        api_logger.info(f"run_async 호출 전 - 세션 ID 유형: {type(session_id).__name__}")
+        
+        # 작업 완료 표시
+        active_jobs[job_id]["status"] = "completed"
+        active_jobs[job_id]["progress"] = 100
+        active_jobs[job_id]["message"] = "앱 생성 완료"
+        
+    except Exception as e:
+        api_logger.error(f"작업 실패: {job_id}, 오류: {str(e)}")
+        
+        # 작업 실패 표시
+        if job_id in active_jobs:
+            active_jobs[job_id]["status"] = "failed"
+            active_jobs[job_id]["message"] = f"앱 생성 중 오류 발생: {str(e)}"
 
 
 @app.get("/job/{job_id}", response_model=JobStatus)
