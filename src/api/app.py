@@ -7,10 +7,8 @@ import asyncio
 import json
 import time
 import uuid
-import os
 import io
 import zipfile
-import traceback
 from typing import Dict, Any, Optional
 from datetime import datetime
 
@@ -19,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 
-from google.adk import Runner
+from google.adk import Runner, Agent
 from google.genai.types import Content
 from src.config.settings import get_agent_config
 from src.utils.logger import setup_logger
@@ -164,177 +162,51 @@ async def handle_app_generation(job_id: str, app_spec: dict):
         )
         api_logger.info(f"Runner 초기화 완료: {type(updated_runner).__name__}")
 
-        # 초기 메시지 구성
-        initial_message = Content(
-            parts=[
-                {"text": json.dumps(app_spec, indent=2)}
-            ],
-            role="user"
+        # 초기 메시지 내용 구성
+        initial_message = Content.text(
+            f"안녕하세요! Flutter 앱을 생성해 주세요. 다음은 앱 명세입니다: "
+            f"{json.dumps(app_spec, ensure_ascii=False)}"
         )
-        api_logger.info(f"초기 메시지 구성 완료: {type(initial_message).__name__}")
-
-        active_jobs[job_id]["progress"] = 20
-        active_jobs[job_id]["message"] = "앱 생성 시작..."
-
-        # 에이전트 실행
-        api_logger.info(f"세션 ID: {session_id_str}, 사용자 ID: {user_id}")
-        api_logger.info(f"Run 호출 전 - 세션 ID 유형: {type_name}")
+        api_logger.info("초기 메시지 구성 완료: Content")
         
+        # 작업 ID와 사용자 ID 연결
+        active_jobs[job_id]["user_id"] = user_id
+        active_jobs[job_id]["runner"] = updated_runner
+        active_jobs[job_id]["session_id"] = session_id_str
+        
+        # 세션 ID와 사용자 ID 기록
+        api_logger.info(f"세션 ID: {session_id_str}, 사용자 ID: {user_id}")
+        
+        # 러너 실행 - 비동기 함수로 실행
+        api_logger.info(
+            f"run_async 호출 전 - 세션 ID 유형: {type(session_id).__name__}"
+        )
+        
+        # 비동기 작업으로 실행 (여기서 initial_message 사용)
         try:
-            # 가장 단순한 방식으로 다시 시도
-            api_logger.info("단순한 방식으로 런너 실행 시도")
-            
-            # 완전히 독립된 새 러너 객체 생성
-            simple_runner = Runner(
-                app_name="SimpleAgentOfFlutter",
-                agent=updated_agent,
-                artifact_service=InMemoryArtifactService(),  # 새 서비스 인스턴스
-                session_service=InMemorySessionService()  # 새 서비스 인스턴스
+            asyncio.create_task(
+                updated_runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=initial_message
+                )
             )
-            
-            # 새 사용자 ID와 세션 생성
-            simple_user_id = str(uuid.uuid4())
-            
-            # 세션 생성하고 ID 받기
-            simple_session_id = simple_runner.session_service.create_session(
-                app_name="SimpleAgentOfFlutter",
-                user_id=simple_user_id
-            )
-            
-            # 세션 정보와 러너 저장
-            session_id_maps[simple_user_id] = simple_session_id
-            session_runners[simple_user_id] = simple_runner  # 러너 객체 자체 저장
-            active_jobs[job_id]["user_id"] = simple_user_id
-            active_jobs[job_id]["runner"] = simple_runner  # 러너 객체 자체 저장
-            
-            # 실행
-            api_logger.info(f"단순 실행 - 사용자: {simple_user_id}")
-            response = simple_runner.run(
-                user_id=simple_user_id,
-                session_id=simple_session_id,
-                new_message=initial_message
-            )
-            
-            api_logger.info(f"단순 실행 성공 - 응답: {type(response).__name__}")
-            
+            api_logger.info("앱 생성 작업 시작됨")
         except Exception as e:
-            # 자세한 오류 정보 출력
-            error_traceback = traceback.format_exc()
-            api_logger.error(f"직접 실행 중 오류 발생: {str(e)}")
-            api_logger.error(f"상세 오류 내용:\n{error_traceback}")
-            
-            # 오류가 Session 객체 해시 문제인지 확인
-            if "unhashable type: 'Session'" in str(e):
-                api_logger.error("해시 불가능 문제: Session 객체가 dict의 키로 사용됨")
-            
-            # 다시 실패
-            raise
-
-        # 결과 처리
-        active_jobs[job_id]["progress"] = 90
-        active_jobs[job_id]["message"] = "결과 처리 중..."
-
-        # 아티팩트 목록 가져오기
-        try:
-            # 세션 객체 가져오기
-            user_id = active_jobs[job_id]["user_id"]
-            runner_obj = session_runners.get(user_id)
-            if not runner_obj:
-                api_logger.warning(f"러너 객체를 찾을 수 없음: {user_id}")
-                runner_obj = active_jobs[job_id].get("runner")
-                if runner_obj:
-                    session_runners[user_id] = runner_obj
-                    api_logger.info(f"작업에서 러너 복구 성공: {user_id}")
-            
-            session = session_id_maps.get(user_id)
-            
-            if not session:
-                api_logger.warning(f"세션 맵에서 세션을 찾을 수 없음: {user_id}")
-                # 세션 서비스에서 직접 가져오기 시도
-                try:
-                    session = session_service.get_session(user_id)
-                    if session:
-                        session_id_maps[user_id] = session
-                        api_logger.info(f"세션 서비스에서 세션 복구 성공: {user_id}")
-                except Exception as sess_e:
-                    api_logger.error(
-                        f"세션 서비스에서 세션 가져오기 실패: {str(sess_e)}"
-                    )
-            
-            if session:
-                api_logger.info("아티팩트 목록 가져오기 시작 - 세션: {0}".format(session))
-                try:
-                    # 직접 아티팩트 서비스에 접근해 아티팩트 목록 가져오기
-                    try:
-                        artifacts = (
-                            runner_obj.artifact_service.list_artifacts(
-                                session
-                            )
-                        )
-                    except AttributeError:
-                        # ADK 0.5.0 변경사항 - 세션 메서드 사용
-                        api_logger.info("list_artifacts 메서드 없음, 대체 방법 시도")
-                        try:
-                            # 세션 객체의 get_artifacts 메서드 시도
-                            if hasattr(session, 'get_artifacts'):
-                                artifacts = session.get_artifacts()
-                            else:
-                                # runner의 직접 접근 시도
-                                artifacts = runner_obj.list_artifacts(
-                                    session
-                                )
-                        except Exception as inner_e:
-                            api_logger.error(
-                                f"대체 방법으로 아티팩트 목록 가져오기 실패: {str(inner_e)}"
-                            )
-                            artifacts = []
-                    
-                    # 아티팩트 이름이 정의되어 있지 않아 수정 필요
-                    try:
-                        # artifact_name 변수가 외부에서 정의되었다고 가정
-                        artifact_name = locals().get('artifact_name', '')
-                        if artifact_name and artifact_name not in [
-                            str(artifact) for artifact in artifacts
-                        ]:
-                            raise HTTPException(
-                                status_code=404,
-                                detail=f"아티팩트 {artifact_name}을 찾을 수 없습니다."
-                            )
-                    except Exception as art_e:
-                        api_logger.error(
-                            f"아티팩트 목록 가져오기 실패: {str(art_e)}"
-                        )
-                        artifacts = []
-                except Exception as e:
-                    api_logger.error(
-                        f"아티팩트 목록 가져오기 실패: {str(e)}"
-                    )
-                    artifacts = []
-            else:
-                api_logger.error("세션을 찾을 수 없음, 빈 목록 반환")
-                artifacts = []
-                
-        except Exception as e:
-            api_logger.warning(f"아티팩트 목록 가져오기 실패: {str(e)}")
-            # 빈 목록으로 계속 진행
-            artifacts = []
-
+            api_logger.error(f"러너 실행 실패: {str(e)}")
+        
+        # 작업 완료 표시
         active_jobs[job_id]["status"] = "completed"
         active_jobs[job_id]["progress"] = 100
         active_jobs[job_id]["message"] = "앱 생성 완료"
-        active_jobs[job_id]["artifacts"] = [
-            str(artifact) for artifact in artifacts
-        ]
-        active_jobs[job_id]["completed_at"] = datetime.now().isoformat()
-
-        api_logger.info(f"작업 완료: {job_id}")
-
+        
     except Exception as e:
-        # 오류 발생 시 작업 상태 업데이트
-        active_jobs[job_id]["status"] = "failed"
-        active_jobs[job_id]["message"] = f"오류 발생: {str(e)}"
-        active_jobs[job_id]["completed_at"] = datetime.now().isoformat()
         api_logger.error(f"작업 실패: {job_id}, 오류: {str(e)}")
+        
+        # 작업 실패 표시
+        if job_id in active_jobs:
+            active_jobs[job_id]["status"] = "failed"
+            active_jobs[job_id]["message"] = f"앱 생성 중 오류 발생: {str(e)}"
 
 
 @app.post("/generate_app")
@@ -404,7 +276,7 @@ async def start_app_creation(job_id: str, app_spec: dict):
         api_logger.info(f"생성된 사용자 ID: {user_id}")
         
         # 세션 생성
-        runner = Runner(app_name="AgentOfFlutter")
+        runner = Runner(app_name="AgentOfFlutter", agent=main_agent)
         session_id = runner.session_service.create_session(
             app_name="AgentOfFlutter",
             user_id=user_id
@@ -420,7 +292,10 @@ async def start_app_creation(job_id: str, app_spec: dict):
         api_logger.info("Runner 초기화 완료: Runner")
         
         # 초기 메시지 내용 구성
-        initial_message = Content.text(f"안녕하세요! Flutter 앱을 생성해 주세요. 다음은 앱 명세입니다: {json.dumps(app_spec, ensure_ascii=False)}")
+        initial_message = Content.text(
+            f"안녕하세요! Flutter 앱을 생성해 주세요. 다음은 앱 명세입니다: "
+            f"{json.dumps(app_spec, ensure_ascii=False)}"
+        )
         api_logger.info("초기 메시지 구성 완료: Content")
         
         # 작업 ID와 사용자 ID 연결
@@ -432,7 +307,22 @@ async def start_app_creation(job_id: str, app_spec: dict):
         api_logger.info(f"세션 ID: {session_id_str}, 사용자 ID: {user_id}")
         
         # 러너 실행 - 비동기 함수로 실행
-        api_logger.info(f"run_async 호출 전 - 세션 ID 유형: {type(session_id).__name__}")
+        api_logger.info(
+            f"run_async 호출 전 - 세션 ID 유형: {type(session_id).__name__}"
+        )
+        
+        # 비동기 작업으로 실행 (여기서 initial_message 사용)
+        try:
+            asyncio.create_task(
+                runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=initial_message
+                )
+            )
+            api_logger.info("앱 생성 작업 시작됨")
+        except Exception as e:
+            api_logger.error(f"러너 실행 실패: {str(e)}")
         
         # 작업 완료 표시
         active_jobs[job_id]["status"] = "completed"
