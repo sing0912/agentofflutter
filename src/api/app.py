@@ -173,28 +173,41 @@ async def handle_app_generation(job_id: str, app_spec: dict):
         api_logger.info(f"Run 호출 전 - 세션 ID 유형: {type_name}")
         
         try:
-            # 세션 객체 사용하지 않고 직접 실행
-            api_logger.info("run 메서드 직접 호출 - 세션 및 사용자 ID 새로 생성")
+            # 가장 단순한 방식으로 다시 시도
+            api_logger.info("단순한 방식으로 런너 실행 시도")
             
-            # 완전히 새로운 세션 생성
-            new_user_id = f"{user_id}_direct"
-            new_session_id = session_service.create_session(
-                app_name="AgentOfFlutter",
-                user_id=new_user_id
+            # 완전히 독립된 새 러너 객체 생성
+            simple_runner = Runner(
+                app_name="SimpleAgentOfFlutter",
+                agent=updated_agent,
+                artifact_service=InMemoryArtifactService(),  # 새 서비스 인스턴스
+                session_service=InMemorySessionService()  # 새 서비스 인스턴스
             )
             
-            # 이 새 세션으로 러너 실행
-            response = updated_runner.run(
-                user_id=new_user_id,
-                session_id=new_session_id,
+            # 새 사용자 ID와 세션 생성
+            simple_user_id = str(uuid.uuid4())
+            
+            # 세션 생성하고 ID 받기
+            simple_session_id = simple_runner.session_service.create_session(
+                app_name="SimpleAgentOfFlutter",
+                user_id=simple_user_id
+            )
+            
+            # 세션 정보 저장
+            session_id_maps[simple_user_id] = simple_session_id
+            active_jobs[job_id]["user_id"] = simple_user_id
+            active_jobs[job_id]["runner"] = simple_runner  # 러너 객체 자체 저장
+            
+            # 실행
+            api_logger.info(f"단순 실행 - 사용자: {simple_user_id}")
+            response = simple_runner.run(
+                user_id=simple_user_id,
+                session_id=simple_session_id,
                 new_message=initial_message
             )
             
-            # 성공 시 세션 ID 맵에 추가
-            session_id_maps[new_user_id] = new_session_id
-            active_jobs[job_id]["user_id"] = new_user_id  # 새 사용자 ID로 업데이트
+            api_logger.info(f"단순 실행 성공 - 응답: {type(response).__name__}")
             
-            api_logger.info(f"직접 실행 성공 - 응답 유형: {type(response).__name__}")
         except Exception as e:
             # 자세한 오류 정보 출력
             error_traceback = traceback.format_exc()
@@ -373,6 +386,14 @@ async def download_artifact(job_id: str, artifact_name: str):
         )
 
     try:
+        # 저장한 러너 객체 사용
+        runner_obj = job_info.get("runner")
+        if not runner_obj:
+            raise HTTPException(
+                status_code=500,
+                detail="작업에 러너 객체가 없습니다."
+            )
+        
         # 세션 객체 가져오기
         user_id = job_info.get("user_id")
         if not user_id:
@@ -386,7 +407,7 @@ async def download_artifact(job_id: str, artifact_name: str):
         if not session:
             # 세션 서비스에서 직접 가져오기 시도
             try:
-                session = session_service.get_session(user_id)
+                session = runner_obj.session_service.get_session(user_id)
                 if session:
                     # 세션 맵에 저장
                     session_id_maps[user_id] = session
@@ -406,7 +427,7 @@ async def download_artifact(job_id: str, artifact_name: str):
         # 아티팩트 존재 여부 확인
         try:
             api_logger.info("아티팩트 목록 요청 - 세션: {0}".format(session))
-            artifacts = artifact_service.list_artifacts(session)
+            artifacts = runner_obj.artifact_service.list_artifacts(session)
             if artifact_name not in [str(artifact) for artifact in artifacts]:
                 raise HTTPException(
                     status_code=404,
@@ -421,7 +442,7 @@ async def download_artifact(job_id: str, artifact_name: str):
 
         # 아티팩트 로드
         try:
-            artifact = artifact_service.load_artifact(
+            artifact = runner_obj.artifact_service.load_artifact(
                 session, artifact_name
             )
             if artifact is None:
@@ -493,6 +514,14 @@ async def download_zip(job_id: str):
         )
 
     try:
+        # 저장한 러너 객체 사용
+        runner_obj = job_info.get("runner")
+        if not runner_obj:
+            raise HTTPException(
+                status_code=500,
+                detail="작업에 러너 객체가 없습니다."
+            )
+        
         # 세션 객체 가져오기
         user_id = job_info.get("user_id")
         if not user_id:
@@ -506,7 +535,7 @@ async def download_zip(job_id: str):
         if not session:
             # 세션 서비스에서 직접 가져오기 시도
             try:
-                session = session_service.get_session(user_id)
+                session = runner_obj.session_service.get_session(user_id)
                 if session:
                     # 세션 맵에 저장
                     session_id_maps[user_id] = session
@@ -526,7 +555,7 @@ async def download_zip(job_id: str):
         # 아티팩트 목록 가져오기
         api_logger.info("ZIP용 아티팩트 목록 요청 - 세션: {0}".format(session))
         try:
-            artifacts = artifact_service.list_artifacts(session)
+            artifacts = runner_obj.artifact_service.list_artifacts(session)
         except Exception as e:
             api_logger.warning(f"ZIP용 아티팩트 목록 가져오기 실패: {str(e)}")
             raise HTTPException(
@@ -545,7 +574,7 @@ async def download_zip(job_id: str):
         ) as zip_file:
             for artifact_name in artifacts:
                 try:
-                    artifact = artifact_service.load_artifact(
+                    artifact = runner_obj.artifact_service.load_artifact(
                         session, str(artifact_name)
                     )
                     if artifact:
