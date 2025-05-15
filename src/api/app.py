@@ -247,13 +247,15 @@ async def handle_app_generation(job_id: str, app_spec: dict):
             if session:
                 api_logger.info("아티팩트 목록 가져오기 시작 - 세션: {0}".format(session))
                 try:
-                    # 아티팩트 존재 여부 확인
-                    api_logger.info("아티팩트 목록 요청 - 세션: {0}".format(session))
                     # 직접 아티팩트 서비스에 접근해 아티팩트 목록 가져오기
                     try:
-                        artifacts = updated_runner.artifact_service.list_artifacts(session)
+                        artifacts = (
+                            updated_runner.artifact_service.list_artifacts(
+                                session
+                            )
+                        )
                     except AttributeError:
-                        # ADK 0.5.0에서 API 변경 - 세션의 get_artifacts() 메서드 사용 시도
+                        # ADK 0.5.0 변경사항 - 세션 메서드 사용
                         api_logger.info("list_artifacts 메서드 없음, 대체 방법 시도")
                         try:
                             # 세션 객체의 get_artifacts 메서드 시도
@@ -261,18 +263,34 @@ async def handle_app_generation(job_id: str, app_spec: dict):
                                 artifacts = session.get_artifacts()
                             else:
                                 # runner의 직접 접근 시도
-                                artifacts = updated_runner.list_artifacts(session)
+                                artifacts = updated_runner.list_artifacts(
+                                    session
+                                )
                         except Exception as inner_e:
-                            api_logger.error(f"대체 방법으로 아티팩트 목록 가져오기 실패: {str(inner_e)}")
+                            api_logger.error(
+                                f"대체 방법으로 아티팩트 목록 가져오기 실패: {str(inner_e)}"
+                            )
                             artifacts = []
-                    if artifact_name not in [str(artifact) for artifact in artifacts]:
-                        raise HTTPException(
-                            status_code=404,
-                            detail=f"아티팩트 {artifact_name}을 찾을 수 없습니다."
+                    
+                    # 아티팩트 이름이 정의되어 있지 않아 수정 필요
+                    try:
+                        # artifact_name 변수가 외부에서 정의되었다고 가정
+                        artifact_name = locals().get('artifact_name', '')
+                        if artifact_name and artifact_name not in [
+                            str(artifact) for artifact in artifacts
+                        ]:
+                            raise HTTPException(
+                                status_code=404,
+                                detail=f"아티팩트 {artifact_name}을 찾을 수 없습니다."
+                            )
+                    except Exception as art_e:
+                        api_logger.error(
+                            f"아티팩트 목록 가져오기 실패: {str(art_e)}"
                         )
-                except Exception as art_e:
+                        artifacts = []
+                except Exception as e:
                     api_logger.error(
-                        f"아티팩트 목록 가져오기 실패: {str(art_e)}"
+                        f"아티팩트 목록 가져오기 실패: {str(e)}"
                     )
                     artifacts = []
             else:
@@ -448,9 +466,13 @@ async def download_artifact(job_id: str, artifact_name: str):
             api_logger.info("아티팩트 목록 요청 - 세션: {0}".format(session))
             # 직접 아티팩트 서비스에 접근해 아티팩트 목록 가져오기
             try:
-                artifacts = runner_obj.artifact_service.list_artifacts(session)
+                artifacts = (
+                    runner_obj.artifact_service.list_artifacts(
+                        session
+                    )
+                )
             except AttributeError:
-                # ADK 0.5.0에서 API 변경 - 세션의 get_artifacts() 메서드 사용 시도
+                # ADK 0.5.0 변경사항 - 세션 메서드 사용
                 api_logger.info("list_artifacts 메서드 없음, 대체 방법 시도")
                 try:
                     # 세션 객체의 get_artifacts 메서드 시도
@@ -458,9 +480,13 @@ async def download_artifact(job_id: str, artifact_name: str):
                         artifacts = session.get_artifacts()
                     else:
                         # runner의 직접 접근 시도
-                        artifacts = runner_obj.list_artifacts(session)
+                        artifacts = runner_obj.list_artifacts(
+                            session
+                        )
                 except Exception as inner_e:
-                    api_logger.error(f"대체 방법으로 아티팩트 목록 가져오기 실패: {str(inner_e)}")
+                    api_logger.error(
+                        f"대체 방법으로 아티팩트 목록 가져오기 실패: {str(inner_e)}"
+                    )
                     artifacts = []
             
             if artifact_name not in [str(artifact) for artifact in artifacts]:
@@ -592,9 +618,13 @@ async def download_zip(job_id: str):
         try:
             # 직접 아티팩트 서비스에 접근해 아티팩트 목록 가져오기
             try:
-                artifacts = runner_obj.artifact_service.list_artifacts(session)
+                artifacts = (
+                    runner_obj.artifact_service.list_artifacts(
+                        session
+                    )
+                )
             except AttributeError:
-                # ADK 0.5.0에서 API 변경 - 세션의 get_artifacts() 메서드 사용 시도
+                # ADK 0.5.0 변경사항 - 세션 메서드 사용
                 api_logger.info("list_artifacts 메서드 없음, 대체 방법 시도")
                 try:
                     # 세션 객체의 get_artifacts 메서드 시도
@@ -602,9 +632,13 @@ async def download_zip(job_id: str):
                         artifacts = session.get_artifacts()
                     else:
                         # runner의 직접 접근 시도
-                        artifacts = runner_obj.list_artifacts(session)
+                        artifacts = runner_obj.list_artifacts(
+                            session
+                        )
                 except Exception as inner_e:
-                    api_logger.error(f"대체 방법으로 아티팩트 목록 가져오기 실패: {str(inner_e)}")
+                    api_logger.error(
+                        f"대체 방법으로 아티팩트 목록 가져오기 실패: {str(inner_e)}"
+                    )
                     artifacts = []
         except Exception as e:
             api_logger.warning(f"ZIP용 아티팩트 목록 가져오기 실패: {str(e)}")
