@@ -13,6 +13,7 @@ from src.agents.webview_group.webview_group_agent import webview_group_agent, re
 from src.agents.api_group.api_group_agent import api_group_agent, register_api_agents
 from src.agents.tdd_group.tdd_group_agent import tdd_group_agent, register_tdd_agents
 from src.agents.security_group.security_group_agent import security_group_agent, register_security_agents
+from src.agents.android_group.android_group_agent import android_group_agent, register_android_agents
 from src.config.settings import get_agent_config
 from src.utils.logger import logger
 
@@ -560,6 +561,9 @@ main_orchestrator_agent = Agent(
         # 보안 그룹 에이전트
         security_group_agent,
 
+        # Android 그룹 에이전트
+        android_group_agent,
+
         # 최종 프로젝트 조립을 담당하는 에이전트
         Agent(
             name="ProjectAssemblyAgent",
@@ -594,6 +598,7 @@ def register_agents(app_spec):
         updated_webview_group_agent = register_webview_agents(app_spec)
         updated_tdd_group_agent = register_tdd_agents(app_spec)
         updated_security_group_agent = register_security_agents(app_spec)
+        updated_android_group_agent = register_android_agents(app_spec)
 
         # 업데이트된 에이전트 목록으로 Agent 생성
         updated_main_orchestrator_agent = Agent(
@@ -621,6 +626,7 @@ def register_agents(app_spec):
                 updated_webview_group_agent,
                 updated_tdd_group_agent,
                 updated_security_group_agent,
+                updated_android_group_agent,
 
                 # 최종 프로젝트 조립을 담당하는 에이전트
                 Agent(

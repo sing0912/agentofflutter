@@ -64,6 +64,7 @@ active_jobs: Dict[str, Dict[str, Any]] = {}
 
 # 사용자 ID에서 세션 객체로의 매핑을 저장 (Session 객체는 해시 불가능)
 session_id_maps: Dict[str, Any] = {}
+session_runners: Dict[str, Any] = {}  # 사용자 ID별 러너 객체 저장
 
 
 # 앱 명세 모델
@@ -193,8 +194,9 @@ async def handle_app_generation(job_id: str, app_spec: dict):
                 user_id=simple_user_id
             )
             
-            # 세션 정보 저장
+            # 세션 정보와 러너 저장
             session_id_maps[simple_user_id] = simple_session_id
+            session_runners[simple_user_id] = simple_runner  # 러너 객체 자체 저장
             active_jobs[job_id]["user_id"] = simple_user_id
             active_jobs[job_id]["runner"] = simple_runner  # 러너 객체 자체 저장
             
@@ -229,6 +231,14 @@ async def handle_app_generation(job_id: str, app_spec: dict):
         try:
             # 세션 객체 가져오기
             user_id = active_jobs[job_id]["user_id"]
+            runner_obj = session_runners.get(user_id)
+            if not runner_obj:
+                api_logger.warning(f"러너 객체를 찾을 수 없음: {user_id}")
+                runner_obj = active_jobs[job_id].get("runner")
+                if runner_obj:
+                    session_runners[user_id] = runner_obj
+                    api_logger.info(f"작업에서 러너 복구 성공: {user_id}")
+            
             session = session_id_maps.get(user_id)
             
             if not session:
@@ -250,7 +260,7 @@ async def handle_app_generation(job_id: str, app_spec: dict):
                     # 직접 아티팩트 서비스에 접근해 아티팩트 목록 가져오기
                     try:
                         artifacts = (
-                            updated_runner.artifact_service.list_artifacts(
+                            runner_obj.artifact_service.list_artifacts(
                                 session
                             )
                         )
@@ -263,7 +273,7 @@ async def handle_app_generation(job_id: str, app_spec: dict):
                                 artifacts = session.get_artifacts()
                             else:
                                 # runner의 직접 접근 시도
-                                artifacts = updated_runner.list_artifacts(
+                                artifacts = runner_obj.list_artifacts(
                                     session
                                 )
                         except Exception as inner_e:
