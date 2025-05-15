@@ -7,6 +7,7 @@ import io
 import uuid
 import json
 import zipfile
+import traceback
 from typing import Dict, Any, Optional
 from datetime import datetime
 
@@ -172,43 +173,40 @@ async def handle_app_generation(job_id: str, app_spec: dict):
         api_logger.info(f"Run 호출 전 - 세션 ID 유형: {type_name}")
         
         try:
-            # 직접 run() 메서드 사용
-            api_logger.info("run 메서드 직접 호출")
+            # 세션 객체 사용하지 않고 직접 실행
+            api_logger.info("run 메서드 직접 호출 - 세션 및 사용자 ID 새로 생성")
+            
+            # 완전히 새로운 세션 생성
+            new_user_id = f"{user_id}_direct"
+            new_session_id = session_service.create_session(
+                app_name="AgentOfFlutter",
+                user_id=new_user_id
+            )
+            
+            # 이 새 세션으로 러너 실행
             response = updated_runner.run(
-                user_id=user_id,
-                session_id=session_id,  # 매핑에서 가져온 세션 객체 사용
+                user_id=new_user_id,
+                session_id=new_session_id,
                 new_message=initial_message
             )
-            api_logger.info(f"run 메서드 반환 - 응답 유형: {type(response).__name__}")
+            
+            # 성공 시 세션 ID 맵에 추가
+            session_id_maps[new_user_id] = new_session_id
+            active_jobs[job_id]["user_id"] = new_user_id  # 새 사용자 ID로 업데이트
+            
+            api_logger.info(f"직접 실행 성공 - 응답 유형: {type(response).__name__}")
         except Exception as e:
-            api_logger.error(f"run 메서드 호출 중 오류 발생: {str(e)}")
+            # 자세한 오류 정보 출력
+            error_traceback = traceback.format_exc()
+            api_logger.error(f"직접 실행 중 오류 발생: {str(e)}")
+            api_logger.error(f"상세 오류 내용:\n{error_traceback}")
+            
+            # 오류가 Session 객체 해시 문제인지 확인
             if "unhashable type: 'Session'" in str(e):
-                api_logger.error(
-                    "Session 객체가 해시 불가능 타입입니다. 수동 재시도..."
-                )
-                # 수동으로 해결 시도
-                try:
-                    # 새 세션 생성
-                    new_user_id = f"{user_id}_new"
-                    new_session_id = session_service.create_session(
-                        app_name="AgentOfFlutter",
-                        user_id=new_user_id
-                    )
-                    session_id_maps[new_user_id] = new_session_id
-                    active_jobs[job_id]["user_id"] = new_user_id
-                    
-                    # 새 세션으로 다시 시도
-                    response = updated_runner.run(
-                        user_id=new_user_id,
-                        session_id=new_session_id,
-                        new_message=initial_message
-                    )
-                    api_logger.info("세션 재생성 후 성공!")
-                except Exception as inner_e:
-                    api_logger.error(f"수동 재시도 실패: {str(inner_e)}")
-                    raise
-            else:
-                raise
+                api_logger.error("해시 불가능 문제: Session 객체가 dict의 키로 사용됨")
+            
+            # 다시 실패
+            raise
 
         # 결과 처리
         active_jobs[job_id]["progress"] = 90
