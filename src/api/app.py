@@ -122,7 +122,7 @@ async def handle_app_generation(job_id: str, app_spec: dict):
         # 세션 생성
         user_id = str(uuid.uuid4())
         api_logger.info(f"생성된 사용자 ID: {user_id}")
-        
+
         session_id = session_service.create_session(
             app_name="AgentOfFlutter",
             user_id=user_id
@@ -163,9 +163,9 @@ async def handle_app_generation(job_id: str, app_spec: dict):
         # 에이전트 실행
         api_logger.info(f"세션 ID: {session_id_str}, 사용자 ID: {user_id}")
         api_logger.info(f"run_async 호출 전 - 세션 ID 유형: {type_name}")
-        
+
         try:
-            # 원본 session_id 객체 사용 
+            # 원본 session_id 객체 사용
             run_generator = updated_runner.run_async(
                 user_id=user_id,
                 session_id=session_id,  # 원본 세션 객체 사용
@@ -173,7 +173,7 @@ async def handle_app_generation(job_id: str, app_spec: dict):
             )
             gen_type = type(run_generator).__name__
             api_logger.info(f"run_async 반환 - 제너레이터 유형: {gen_type}")
-            
+
             # 제너레이터 소비
             api_logger.info("제너레이터 소비 시작")
             async for response in run_generator:
