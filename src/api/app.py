@@ -119,15 +119,6 @@ async def handle_app_generation(job_id: str, app_spec: dict):
         updated_agent = register_agents(app_spec)
         api_logger.info(f"에이전트 등록 완료: {type(updated_agent).__name__}")
 
-        # 업데이트된 에이전트로 런너 재설정
-        updated_runner = Runner(
-            app_name="AgentOfFlutter",
-            agent=updated_agent,
-            artifact_service=artifact_service,
-            session_service=session_service,
-        )
-        api_logger.info(f"Runner 초기화 완료: {type(updated_runner).__name__}")
-
         # 세션 생성
         user_id = str(uuid.uuid4())
         api_logger.info(f"생성된 사용자 ID: {user_id}")
@@ -142,7 +133,20 @@ async def handle_app_generation(job_id: str, app_spec: dict):
         # 세션 ID를 문자열로 저장
         session_id_str = str(session_id)
         active_jobs[job_id]["session_id"] = session_id_str
+        active_jobs[job_id]["original_session_id"] = session_id  # 원본 세션 객체도 저장
         api_logger.info(f"세션 ID 문자열: {session_id_str}")
+
+        # app_spec 저장
+        active_jobs[job_id]["app_spec"] = app_spec
+
+        # 업데이트된 에이전트로 런너 재설정
+        updated_runner = Runner(
+            app_name="AgentOfFlutter",
+            agent=updated_agent,
+            artifact_service=artifact_service,
+            session_service=session_service,
+        )
+        api_logger.info(f"Runner 초기화 완료: {type(updated_runner).__name__}")
 
         # 초기 메시지 구성
         initial_message = Content(
@@ -161,9 +165,10 @@ async def handle_app_generation(job_id: str, app_spec: dict):
         api_logger.info(f"run_async 호출 전 - 세션 ID 유형: {type_name}")
         
         try:
+            # 원본 session_id 객체 사용 
             run_generator = updated_runner.run_async(
                 user_id=user_id,
-                session_id=session_id_str,
+                session_id=session_id,  # 원본 세션 객체 사용
                 new_message=initial_message
             )
             gen_type = type(run_generator).__name__
@@ -185,25 +190,13 @@ async def handle_app_generation(job_id: str, app_spec: dict):
         # 아티팩트 목록 가져오기
         try:
             api_logger.info(f"아티팩트 목록 가져오기 시작 - 세션 ID: {session_id_str}")
-            # session_id 객체 대신 문자열 변환 시도
-            artifacts = artifact_service.list_artifacts(session_id_str)
+            # 원본 세션 ID 객체 사용
+            artifacts = artifact_service.list_artifacts(session_id)
             api_logger.info(f"아티팩트 목록 가져오기 성공 - 아티팩트 수: {len(artifacts)}")
         except Exception as e:
-            api_logger.warning(f"문자열 세션 ID로 아티팩트 목록 가져오기 실패: {str(e)}")
-            # 원본 세션 ID로 다시 시도
-            try:
-                api_logger.info(
-                    f"원본 세션 ID로 아티팩트 목록 가져오기 시도 - "
-                    f"세션 ID: {session_id}"
-                )
-                artifacts = artifact_service.list_artifacts(session_id)
-                api_logger.info(
-                    f"원본 세션 ID로 아티팩트 목록 가져오기 성공 - "
-                    f"아티팩트 수: {len(artifacts)}"
-                )
-            except Exception as e2:
-                api_logger.error(f"원본 세션 ID로도 아티팩트 목록 가져오기 실패: {str(e2)}")
-                artifacts = []
+            api_logger.warning(f"아티팩트 목록 가져오기 실패: {str(e)}")
+            # 빈 목록으로 계속 진행
+            artifacts = []
 
         active_jobs[job_id]["status"] = "completed"
         active_jobs[job_id]["progress"] = 100
@@ -325,12 +318,16 @@ async def download_artifact(job_id: str, artifact_name: str):
             detail=f"작업이 아직 완료되지 않았습니다. 현재 상태: {job_info['status']}"
         )
 
-    session_id = job_info.get("session_id")
+    # 원본 세션 ID 객체 사용
+    session_id = job_info.get("original_session_id")
     if not session_id:
-        raise HTTPException(
-            status_code=500,
-            detail="세션 ID를 찾을 수 없습니다."
-        )
+        # 대체 방법: 문자열 세션 ID 사용
+        session_id = job_info.get("session_id")
+        if not session_id:
+            raise HTTPException(
+                status_code=500,
+                detail="세션 ID를 찾을 수 없습니다."
+            )
 
     # 아티팩트 존재 여부 확인
     try:
@@ -422,12 +419,16 @@ async def download_zip(job_id: str):
             detail=f"작업이 아직 완료되지 않았습니다. 현재 상태: {job_info['status']}"
         )
 
-    session_id = job_info.get("session_id")
+    # 원본 세션 ID 객체 사용
+    session_id = job_info.get("original_session_id")
     if not session_id:
-        raise HTTPException(
-            status_code=500,
-            detail="세션 ID를 찾을 수 없습니다."
-        )
+        # 대체 방법: 문자열 세션 ID 사용
+        session_id = job_info.get("session_id")
+        if not session_id:
+            raise HTTPException(
+                status_code=500,
+                detail="세션 ID를 찾을 수 없습니다."
+            )
 
     try:
         # 아티팩트 목록 가져오기
