@@ -22,7 +22,6 @@ from google.genai.types import Content
 from src.config.settings import get_agent_config
 from src.utils.logger import setup_logger
 
-from google.adk.runners import Runner
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.sessions import InMemorySessionService
 
@@ -30,8 +29,6 @@ from src.config.settings import API_HOST, API_PORT, API_DEBUG
 from src.agents.main_orchestrator_agent import (
     main_orchestrator_agent, register_agents
 )
-from src.utils.logger import setup_logger
-
 
 # API 로거 설정
 api_logger = setup_logger("api")
