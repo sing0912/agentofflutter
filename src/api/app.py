@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 
-from google.adk import Runner, Agent
+from google.adk import Runner
 from src.utils.logger import setup_logger
 
 from google.adk.artifacts import InMemoryArtifactService
@@ -180,7 +180,7 @@ async def handle_app_generation(job_id: str, app_spec: dict):
         # 세션 ID를 사용자 ID에 매핑
         session_id_str = str(session_id)
         api_logger.info(f"세션 ID 문자열: {session_id_str}")
-        session_id_maps[user_id] = session
+        session_id_maps[user_id] = session_id
         session_runners[user_id] = runner
 
         api_logger.info("Runner 초기화 완료: Runner")
@@ -222,7 +222,9 @@ async def handle_app_generation(job_id: str, app_spec: dict):
             # 작업이 완료되면 아티팩트 가져오기
             artifacts = {}
             for artifact_id in artifact_service.list_artifacts(session_id):
-                artifact_data = artifact_service.get_artifact(session_id, artifact_id)
+                artifact_data = artifact_service.get_artifact(
+                    session_id, artifact_id
+                )
                 if artifact_data and artifact_data.data:
                     artifacts[artifact_id] = artifact_data.data
             
@@ -346,7 +348,9 @@ async def start_app_creation(job_id: str, app_spec: dict):
         
         for model in models:
             model_name = model.get("name", "Unknown")
-            model_file_path = os.path.join(models_dir, f"{model_name.lower()}.dart")
+            model_file_path = os.path.join(
+                models_dir, f"{model_name.lower()}.dart"
+            )
             api_logger.info(f"모델 파일 생성: {model_file_path}")
             
             fields = model.get("fields", [])
@@ -362,7 +366,9 @@ async def start_app_creation(job_id: str, app_spec: dict):
                     field_type = f"{field_type}?"
                     field_definitions.append(f"  {field_type} {field_name};")
                 else:
-                    field_definitions.append(f"  final {field_type} {field_name};")
+                    field_definitions.append(
+                        f"  final {field_type} {field_name};"
+                    )
                 
                 constructor_params.append(f"    this.{field_name},")
             
@@ -394,7 +400,9 @@ class {model_name} {{
                     f.write(model_content)
                 api_logger.info(f"모델 파일 쓰기 성공: {model_file_path}")
             except Exception as e:
-                api_logger.error(f"모델 파일 쓰기 실패: {model_file_path}, 오류: {str(e)}")
+                api_logger.error(
+                    f"모델 파일 쓰기 실패: {model_file_path}, 오류: {str(e)}"
+                )
                 raise
             
             model_files.append(f"models/{model_name.lower()}.dart")
@@ -406,7 +414,9 @@ class {model_name} {{
         api_logger.info(f"페이지 개수: {len(pages)}")
         
         for page_name in pages:
-            page_file_path = os.path.join(pages_dir, f"{page_name.lower()}.dart")
+            page_file_path = os.path.join(
+                pages_dir, f"{page_name.lower()}.dart"
+            )
             api_logger.info(f"페이지 파일 생성: {page_file_path}")
             
             page_content = f"""
@@ -435,18 +445,132 @@ class {page_name} extends StatelessWidget {{
                     f.write(page_content)
                 api_logger.info(f"페이지 파일 쓰기 성공: {page_file_path}")
             except Exception as e:
-                api_logger.error(f"페이지 파일 쓰기 실패: {page_file_path}, 오류: {str(e)}")
+                api_logger.error(
+                    f"페이지 파일 쓰기 실패: {page_file_path}, 오류: {str(e)}"
+                )
                 raise
             
             page_files.append(f"pages/{page_name.lower()}.dart")
+            
+        # main.dart 파일 생성
+        main_file_path = os.path.join(lib_dir, "main.dart")
+        
+        # 첫 번째 페이지가 없으면 기본 페이지 사용
+        first_page = pages[0] if pages else "HomePage"
+        
+        main_content = f"""
+import 'package:flutter/material.dart';
+import 'pages/{first_page.lower()}.dart';
+
+void main() {{
+  runApp(const MyApp());
+}}
+
+class MyApp extends StatelessWidget {{
+  const MyApp({{Key? key}}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {{
+    return MaterialApp(
+      title: '{app_name}',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: const {first_page}(),
+    );
+  }}
+}}
+"""
+        
+        with open(main_file_path, 'w') as f:
+            f.write(main_content)
+        api_logger.info(f"메인 파일 생성 완료: {main_file_path}")
+        
+        # pubspec.yaml 파일 생성
+        pubspec_file_path = os.path.join(job_output_dir, "pubspec.yaml")
+        
+        pubspec_content = f"""
+name: {app_name}
+description: {app_description}
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+  provider: ^6.0.5
+  http: ^1.1.0
+  json_annotation: ^4.8.1
+  shared_preferences: ^2.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+  build_runner: ^2.4.6
+  json_serializable: ^6.7.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+"""
+        
+        with open(pubspec_file_path, 'w') as f:
+            f.write(pubspec_content)
+        api_logger.info(f"pubspec.yaml 파일 생성 완료: {pubspec_file_path}")
+        
+        # README.md 파일 생성
+        readme_file_path = os.path.join(job_output_dir, "README.md")
+        
+        readme_content = f"""
+# {app_name}
+
+{app_description}
+
+## Getting Started
+
+This is a Flutter application.
+
+### Prerequisites
+
+- Flutter SDK
+- Dart
+
+### Running the application
+
+1. Run `flutter pub get` to install dependencies
+2. Run `flutter run` to start the application
+
+## Features
+
+- [Add your features here]
+"""
+        
+        with open(readme_file_path, 'w') as f:
+            f.write(readme_content)
+        api_logger.info(f"README.md 파일 생성 완료: {readme_file_path}")
+        
+        # 생성된 모든 파일 목록
+        artifact_files = [
+            "lib/main.dart",
+            "pubspec.yaml",
+            "README.md"
+        ] + [f"lib/{file}" for file in model_files + page_files]
         
         # 작업 상태 업데이트
         active_jobs[job_id]["status"] = "completed"
         active_jobs[job_id]["progress"] = 100
         active_jobs[job_id]["message"] = "앱 생성 완료"
-        active_jobs[job_id]["artifacts"] = model_files + page_files
+        active_jobs[job_id]["artifacts"] = artifact_files
         
-        api_logger.info(f"앱 생성 완료: {app_name}, 파일 생성 수: {len(model_files) + len(page_files)}")
+        api_logger.info(
+            f"앱 생성 완료: {app_name}, "
+            f"파일 생성 수: {len(model_files) + len(page_files) + 3}"
+        )
         
         # 디버그: 최종 파일 확인
         api_logger.info("생성된 파일 목록:")
