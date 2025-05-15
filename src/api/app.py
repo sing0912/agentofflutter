@@ -163,7 +163,7 @@ async def handle_app_generation(job_id: str, app_spec: dict):
         try:
             run_generator = updated_runner.run_async(
                 user_id=user_id,
-                session_id=session_id,
+                session_id=session_id_str,
                 new_message=initial_message
             )
             gen_type = type(run_generator).__name__
