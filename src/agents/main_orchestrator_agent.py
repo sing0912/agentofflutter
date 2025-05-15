@@ -106,6 +106,241 @@ linter:
             filename="analysis_options.yaml",
             artifact=analysis_part
         )
+        
+        # Android 프로젝트 파일 생성
+        # 1. android/app/build.gradle
+        app_build_gradle_content = """
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+def flutterRoot = localProperties.getProperty('flutter.sdk')
+if (flutterRoot == null) {
+    throw new Exception("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
+}
+
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+if (flutterVersionCode == null) {
+    flutterVersionCode = '1'
+}
+
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
+if (flutterVersionName == null) {
+    flutterVersionName = '1.0'
+}
+
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
+
+android {
+    compileSdkVersion 33
+    ndkVersion flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
+    defaultConfig {
+        applicationId "com.example.${app_name}"
+        minSdkVersion 21
+        targetSdkVersion 33
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.debug
+        }
+    }
+}
+
+flutter {
+    source '../..'
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+}
+        """
+        
+        app_build_gradle_bytes = app_build_gradle_content.encode("utf-8")
+        app_build_gradle_part = Part.from_data(
+            data=app_build_gradle_bytes,
+            mime_type="text/x-gradle"
+        )
+        
+        tool_context.save_artifact(
+            filename="android/app/build.gradle",
+            artifact=app_build_gradle_part
+        )
+        
+        # 2. android/build.gradle
+        build_gradle_content = """
+buildscript {
+    ext.kotlin_version = '1.8.10'
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:7.3.0'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.buildDir = '../build'
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(':app')
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}
+        """
+        
+        build_gradle_bytes = build_gradle_content.encode("utf-8")
+        build_gradle_part = Part.from_data(
+            data=build_gradle_bytes,
+            mime_type="text/x-gradle"
+        )
+        
+        tool_context.save_artifact(
+            filename="android/build.gradle",
+            artifact=build_gradle_part
+        )
+        
+        # 3. android/settings.gradle
+        settings_gradle_content = """
+include ':app'
+
+def localPropertiesFile = new File(rootProject.projectDir, "local.properties")
+def properties = new Properties()
+
+assert localPropertiesFile.exists()
+localPropertiesFile.withReader("UTF-8") { reader -> properties.load(reader) }
+
+def flutterSdkPath = properties.getProperty("flutter.sdk")
+assert flutterSdkPath != null, "flutter.sdk not set in local.properties"
+apply from: "$flutterSdkPath/packages/flutter_tools/gradle/app_plugin_loader.gradle"
+        """
+        
+        settings_gradle_bytes = settings_gradle_content.encode("utf-8")
+        settings_gradle_part = Part.from_data(
+            data=settings_gradle_bytes, 
+            mime_type="text/x-gradle"
+        )
+        
+        tool_context.save_artifact(
+            filename="android/settings.gradle",
+            artifact=settings_gradle_part
+        )
+        
+        # 4. MainActivity.kt
+        main_activity_content = f"""
+package com.example.{app_name.lower().replace('-', '_').replace(' ', '_')}
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity: FlutterActivity() {{
+}}
+        """
+        
+        main_activity_bytes = main_activity_content.encode("utf-8")
+        main_activity_part = Part.from_data(
+            data=main_activity_bytes,
+            mime_type="text/x-kotlin"
+        )
+        
+        tool_context.save_artifact(
+            filename=f"android/app/src/main/kotlin/com/example/{app_name.lower().replace('-', '_').replace(' ', '_')}/MainActivity.kt",
+            artifact=main_activity_part
+        )
+        
+        # 5. AndroidManifest.xml
+        manifest_content = f"""<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.{app_name.lower().replace('-', '_').replace(' ', '_')}">
+    <application
+        android:name="${{applicationName}}"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name">
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:exported="true"
+            android:hardwareAccelerated="true"
+            android:launchMode="singleTop"
+            android:theme="@style/LaunchTheme"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+</manifest>
+        """
+        
+        manifest_bytes = manifest_content.encode("utf-8")
+        manifest_part = Part.from_data(
+            data=manifest_bytes,
+            mime_type="application/xml"
+        )
+        
+        tool_context.save_artifact(
+            filename="android/app/src/main/AndroidManifest.xml",
+            artifact=manifest_part
+        )
+        
+        # 6. strings.xml (앱 이름 설정)
+        strings_content = f"""<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">{app_spec.get("app_name", "Flutter App")}</string>
+</resources>
+        """
+        
+        strings_bytes = strings_content.encode("utf-8")
+        strings_part = Part.from_data(
+            data=strings_bytes,
+            mime_type="application/xml"
+        )
+        
+        tool_context.save_artifact(
+            filename="android/app/src/main/res/values/strings.xml",
+            artifact=strings_part
+        )
 
         # 필요한 디렉토리 구조 기록
         directories = [
@@ -120,7 +355,9 @@ linter:
             "app/models",
             "app/db",
             "app/services",
-            "security/reports"
+            "security/reports",
+            "android/app/src/main/kotlin",
+            "android/app/src/main/res"
         ]
 
         # 세션 상태에 앱 명세 저장
