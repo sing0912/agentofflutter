@@ -165,20 +165,20 @@ async def handle_app_generation(job_id: str, app_spec: dict):
             f"{json.dumps(app_spec, ensure_ascii=False)}"
         )
         api_logger.info("초기 메시지 구성 완료: Content")
-        
+
         # 작업 ID와 사용자 ID 연결
         active_jobs[job_id]["user_id"] = user_id
         active_jobs[job_id]["runner"] = updated_runner
         active_jobs[job_id]["session_id"] = session_id_str
-        
+
         # 세션 ID와 사용자 ID 기록
         api_logger.info(f"세션 ID: {session_id_str}, 사용자 ID: {user_id}")
-        
+
         # 러너 실행 - 비동기 함수로 실행
         api_logger.info(
             f"run_async 호출 전 - 세션 ID 유형: {type(session_id).__name__}"
         )
-        
+
         # 비동기 작업으로 실행 (여기서 initial_message 사용)
         try:
             asyncio.create_task(
@@ -191,15 +191,15 @@ async def handle_app_generation(job_id: str, app_spec: dict):
             api_logger.info("앱 생성 작업 시작됨")
         except Exception as e:
             api_logger.error(f"러너 실행 실패: {str(e)}")
-        
+
         # 작업 완료 표시
         active_jobs[job_id]["status"] = "completed"
         active_jobs[job_id]["progress"] = 100
         active_jobs[job_id]["message"] = "앱 생성 완료"
-        
+
     except Exception as e:
         api_logger.error(f"작업 실패: {job_id}, 오류: {str(e)}")
-        
+
         # 작업 실패 표시
         if job_id in active_jobs:
             active_jobs[job_id]["status"] = "failed"
@@ -210,14 +210,14 @@ async def handle_app_generation(job_id: str, app_spec: dict):
 async def start_flutter_app_creation(request: Request):
     """
     Flutter 앱 생성 작업을 시작합니다.
-    
+
     Request body는 앱 명세를 포함해야 합니다.
     """
     try:
         app_spec = await request.json()
-        
+
         job_id = str(uuid.uuid4())
-        
+
         # 작업 상태 초기화
         active_jobs[job_id] = {
             "status": "pending",
@@ -226,10 +226,10 @@ async def start_flutter_app_creation(request: Request):
             "artifacts": [],
             "start_time": time.time()
         }
-        
+
         # 백그라운드 작업으로 앱 생성 실행
         asyncio.create_task(start_app_creation(job_id, app_spec))
-        
+
         return {
             "job_id": job_id,
             "status": active_jobs[job_id]["status"],
@@ -237,7 +237,7 @@ async def start_flutter_app_creation(request: Request):
             "message": active_jobs[job_id]["message"],
             "artifacts": active_jobs[job_id]["artifacts"]
         }
-        
+
     except Exception as e:
         api_logger.error(f"앱 생성 요청 처리 중 오류 발생: {str(e)}")
         return JSONResponse(
@@ -249,7 +249,7 @@ async def start_flutter_app_creation(request: Request):
 async def start_app_creation(job_id: str, app_spec: dict):
     """
     Flutter 앱 생성 프로세스를 시작합니다.
-    
+
     Args:
         job_id: 작업 ID
         app_spec: 앱 명세 딕셔너리
@@ -257,21 +257,21 @@ async def start_app_creation(job_id: str, app_spec: dict):
     try:
         # 에이전트 초기화
         agent_config = get_agent_config()
-        
+
         # AgentOfFlutter 앱 에이전트 생성
         main_agent = Agent(
             name="MainOrchestratorAgent",
             description="전체 Flutter 앱 생성 프로세스를 조정하는 에이전트",
             config=agent_config
         )
-        
+
         # 에이전트 등록
         api_logger.info("에이전트 등록 완료: LlmAgent")
-        
+
         # 사용자 ID 생성
         user_id = str(uuid.uuid4())
         api_logger.info(f"생성된 사용자 ID: {user_id}")
-        
+
         # 세션 생성
         runner = Runner(app_name="AgentOfFlutter", agent=main_agent)
         session_id = runner.session_service.create_session(
@@ -279,35 +279,35 @@ async def start_app_creation(job_id: str, app_spec: dict):
             user_id=user_id
         )
         api_logger.info(f"세션 생성 완료: {session_id}, 값: {session_id}")
-        
+
         # 세션 ID 문자열로 저장 및 러너 객체 저장
         session_id_str = str(session_id)
         api_logger.info(f"세션 ID 문자열: {session_id_str}")
         session_id_maps[user_id] = session_id
         session_runners[user_id] = runner
-        
+
         api_logger.info("Runner 초기화 완료: Runner")
-        
+
         # 초기 메시지 내용 구성
         initial_message = Content.text(
             f"안녕하세요! Flutter 앱을 생성해 주세요. 다음은 앱 명세입니다: "
             f"{json.dumps(app_spec, ensure_ascii=False)}"
         )
         api_logger.info("초기 메시지 구성 완료: Content")
-        
+
         # 작업 ID와 사용자 ID 연결
         active_jobs[job_id]["user_id"] = user_id
         active_jobs[job_id]["runner"] = runner
         active_jobs[job_id]["session_id"] = session_id_str
-        
+
         # 세션 ID와 사용자 ID 기록
         api_logger.info(f"세션 ID: {session_id_str}, 사용자 ID: {user_id}")
-        
+
         # 러너 실행 - 비동기 함수로 실행
         api_logger.info(
             f"run_async 호출 전 - 세션 ID 유형: {type(session_id).__name__}"
         )
-        
+
         # 비동기 작업으로 실행 (여기서 initial_message 사용)
         try:
             asyncio.create_task(
@@ -320,15 +320,15 @@ async def start_app_creation(job_id: str, app_spec: dict):
             api_logger.info("앱 생성 작업 시작됨")
         except Exception as e:
             api_logger.error(f"러너 실행 실패: {str(e)}")
-        
+
         # 작업 완료 표시
         active_jobs[job_id]["status"] = "completed"
         active_jobs[job_id]["progress"] = 100
         active_jobs[job_id]["message"] = "앱 생성 완료"
-        
+
     except Exception as e:
         api_logger.error(f"작업 실패: {job_id}, 오류: {str(e)}")
-        
+
         # 작업 실패 표시
         if job_id in active_jobs:
             active_jobs[job_id]["status"] = "failed"
@@ -403,7 +403,7 @@ async def download_artifact(job_id: str, artifact_name: str):
                 status_code=500,
                 detail="작업에 러너 객체가 없습니다."
             )
-        
+
         # 세션 객체 가져오기
         user_id = job_info.get("user_id")
         if not user_id:
@@ -411,7 +411,7 @@ async def download_artifact(job_id: str, artifact_name: str):
                 status_code=500,
                 detail="작업에 사용자 ID가 없습니다."
             )
-        
+
         # 세션 맵에서 세션 객체 가져오기
         session = session_id_maps.get(user_id)
         if not session:
@@ -461,7 +461,7 @@ async def download_artifact(job_id: str, artifact_name: str):
                         f"대체 방법으로 아티팩트 목록 가져오기 실패: {str(inner_e)}"
                     )
                     artifacts = []
-            
+
             if artifact_name not in [str(artifact) for artifact in artifacts]:
                 raise HTTPException(
                     status_code=404,
@@ -555,7 +555,7 @@ async def download_zip(job_id: str):
                 status_code=500,
                 detail="작업에 러너 객체가 없습니다."
             )
-        
+
         # 세션 객체 가져오기
         user_id = job_info.get("user_id")
         if not user_id:
@@ -563,7 +563,7 @@ async def download_zip(job_id: str):
                 status_code=500,
                 detail="작업에 사용자 ID가 없습니다."
             )
-        
+
         # 세션 맵에서 세션 객체 가져오기
         session = session_id_maps.get(user_id)
         if not session:

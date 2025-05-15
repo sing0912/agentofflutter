@@ -14,16 +14,17 @@ from src.utils.logger import logger
 def create_android_build_gradle(tool_context) -> dict:
     """
     안드로이드 프로젝트 수준 build.gradle 파일을 생성합니다.
-    
+
     Args:
         tool_context: 도구 컨텍스트
-        
+
     Returns:
         생성 결과를 포함하는 딕셔너리
     """
     try:
-        app_name = tool_context.state.get("app_name", "flutter_app")
-        
+        app_name = tool_context.state.get(
+            "app_name", "flutter_app")  # 향후 사용 예정
+
         build_gradle_content = """
 buildscript {
     ext.kotlin_version = '1.8.10'
@@ -57,24 +58,24 @@ tasks.register("clean", Delete) {
     delete rootProject.buildDir
 }
         """
-        
+
         build_gradle_bytes = build_gradle_content.encode("utf-8")
         build_gradle_part = Part.from_data(
             data=build_gradle_bytes,
             mime_type="text/x-gradle"
         )
-        
+
         tool_context.save_artifact(
             filename="android/build.gradle",
             artifact=build_gradle_part
         )
-        
+
         return {
             "success": True,
             "file": "android/build.gradle",
             "message": "안드로이드 프로젝트 build.gradle 파일 생성 완료"
         }
-        
+
     except Exception as e:
         logger.error(f"안드로이드 build.gradle 생성 중 오류 발생: {str(e)}")
         return {
@@ -88,17 +89,19 @@ tasks.register("clean", Delete) {
 def create_app_build_gradle(tool_context) -> dict:
     """
     안드로이드 앱 수준 build.gradle 파일을 생성합니다.
-    
+
     Args:
         tool_context: 도구 컨텍스트
-        
+
     Returns:
         생성 결과를 포함하는 딕셔너리
     """
     try:
-        app_name = tool_context.state.get("app_name", "flutter_app")
-        app_name_slug = app_name.lower().replace('-', '_').replace(' ', '_')
-        
+        app_name = tool_context.state.get(
+            "app_name", "flutter_app")  # 향후 사용 예정
+        app_name_slug = app_name.lower().replace(
+            '-', '_').replace(' ', '_')  # 향후 사용 예정
+
         app_build_gradle_content = """
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
@@ -167,24 +170,24 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
 }
         """
-        
+
         app_build_gradle_bytes = app_build_gradle_content.encode("utf-8")
         app_build_gradle_part = Part.from_data(
             data=app_build_gradle_bytes,
             mime_type="text/x-gradle"
         )
-        
+
         tool_context.save_artifact(
             filename="android/app/build.gradle",
             artifact=app_build_gradle_part
         )
-        
+
         return {
             "success": True,
             "file": "android/app/build.gradle",
             "message": "안드로이드 앱 build.gradle 파일 생성 완료"
         }
-        
+
     except Exception as e:
         logger.error(f"안드로이드 앱 build.gradle 생성 중 오류 발생: {str(e)}")
         return {
@@ -198,10 +201,10 @@ dependencies {
 def create_settings_gradle(tool_context) -> dict:
     """
     안드로이드 settings.gradle 파일을 생성합니다.
-    
+
     Args:
         tool_context: 도구 컨텍스트
-        
+
     Returns:
         생성 결과를 포함하는 딕셔너리
     """
@@ -219,24 +222,24 @@ def flutterSdkPath = properties.getProperty("flutter.sdk")
 assert flutterSdkPath != null, "flutter.sdk not set in local.properties"
 apply from: "$flutterSdkPath/packages/flutter_tools/gradle/app_plugin_loader.gradle"
         """
-        
+
         settings_gradle_bytes = settings_gradle_content.encode("utf-8")
         settings_gradle_part = Part.from_data(
-            data=settings_gradle_bytes, 
+            data=settings_gradle_bytes,
             mime_type="text/x-gradle"
         )
-        
+
         tool_context.save_artifact(
             filename="android/settings.gradle",
             artifact=settings_gradle_part
         )
-        
+
         return {
             "success": True,
             "file": "android/settings.gradle",
             "message": "안드로이드 settings.gradle 파일 생성 완료"
         }
-        
+
     except Exception as e:
         logger.error(f"안드로이드 settings.gradle 생성 중 오류 발생: {str(e)}")
         return {
@@ -250,17 +253,19 @@ apply from: "$flutterSdkPath/packages/flutter_tools/gradle/app_plugin_loader.gra
 def create_main_activity(tool_context) -> dict:
     """
     안드로이드 MainActivity.kt 파일을 생성합니다.
-    
+
     Args:
         tool_context: 도구 컨텍스트
-        
+
     Returns:
         생성 결과를 포함하는 딕셔너리
     """
     try:
-        app_name = tool_context.state.get("app_name", "flutter_app")
-        app_name_slug = app_name.lower().replace('-', '_').replace(' ', '_')
-        
+        app_name = tool_context.state.get(
+            "app_name", "flutter_app")  # 향후 사용 예정
+        app_name_slug = app_name.lower().replace(
+            '-', '_').replace(' ', '_')  # 향후 사용 예정
+
         main_activity_content = f"""
 package com.example.{app_name_slug}
 
@@ -269,27 +274,28 @@ import io.flutter.embedding.android.FlutterActivity
 class MainActivity: FlutterActivity() {{
 }}
         """
-        
+
         main_activity_bytes = main_activity_content.encode("utf-8")
         main_activity_part = Part.from_data(
             data=main_activity_bytes,
             mime_type="text/x-kotlin"
         )
-        
+
+        # 향후 사용 예정
         dir_path = f"android/app/src/main/kotlin/com/example/{app_name_slug}"
         filepath = f"{dir_path}/MainActivity.kt"
-        
+
         tool_context.save_artifact(
             filename=filepath,
             artifact=main_activity_part
         )
-        
+
         return {
             "success": True,
             "file": filepath,
             "message": "안드로이드 MainActivity.kt 파일 생성 완료"
         }
-        
+
     except Exception as e:
         logger.error(f"안드로이드 MainActivity.kt 생성 중 오류 발생: {str(e)}")
         return {
@@ -297,30 +303,32 @@ class MainActivity: FlutterActivity() {{
             "error": str(e),
             "message": f"안드로이드 MainActivity.kt 생성 실패: {str(e)}"
         }
-        
+
 
 # AndroidManifest.xml 파일 생성 함수
 def create_android_manifest(tool_context) -> dict:
     """
     안드로이드 AndroidManifest.xml 파일을 생성합니다.
-    
+
     Args:
         tool_context: 도구 컨텍스트
-        
+
     Returns:
         생성 결과를 포함하는 딕셔너리
     """
     try:
-        app_name = tool_context.state.get("app_name", "flutter_app")
-        app_name_slug = app_name.lower().replace('-', '_').replace(' ', '_')
-        
+        app_name = tool_context.state.get(
+            "app_name", "flutter_app")  # 향후 사용 예정
+        app_name_slug = app_name.lower().replace(
+            '-', '_').replace(' ', '_')  # 향후 사용 예정
+
         manifest_content = f"""<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.{app_name_slug}">
+    package="com.example.{app_name_slug}">  # 향후 사용 예정
     <application
         android:name="${{applicationName}}"
         android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name">
+        android:label="@string/app_name">  # 향후 사용 예정
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
@@ -343,24 +351,24 @@ def create_android_manifest(tool_context) -> dict:
     </application>
 </manifest>
         """
-        
+
         manifest_bytes = manifest_content.encode("utf-8")
         manifest_part = Part.from_data(
             data=manifest_bytes,
             mime_type="application/xml"
         )
-        
+
         tool_context.save_artifact(
             filename="android/app/src/main/AndroidManifest.xml",
             artifact=manifest_part
         )
-        
+
         return {
             "success": True,
             "file": "android/app/src/main/AndroidManifest.xml",
             "message": "안드로이드 AndroidManifest.xml 파일 생성 완료"
         }
-        
+
     except Exception as e:
         logger.error(f"안드로이드 AndroidManifest.xml 생성 중 오류 발생: {str(e)}")
         return {
@@ -374,40 +382,40 @@ def create_android_manifest(tool_context) -> dict:
 def create_strings_xml(tool_context) -> dict:
     """
     안드로이드 strings.xml 파일을 생성합니다.
-    
+
     Args:
         tool_context: 도구 컨텍스트
-        
+
     Returns:
         생성 결과를 포함하는 딕셔너리
     """
     try:
         app_spec = tool_context.state.get("app_spec", {})
-        app_name = app_spec.get("app_name", "Flutter App")
-        
+        app_name = app_spec.get("app_name", "Flutter App")  # 향후 사용 예정
+
         strings_content = f"""<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">{app_name}</string>
+    <string name="app_name">{app_name}</string>  # 향후 사용 예정
 </resources>
         """
-        
+
         strings_bytes = strings_content.encode("utf-8")
         strings_part = Part.from_data(
             data=strings_bytes,
             mime_type="application/xml"
         )
-        
+
         tool_context.save_artifact(
             filename="android/app/src/main/res/values/strings.xml",
             artifact=strings_part
         )
-        
+
         return {
             "success": True,
             "file": "android/app/src/main/res/values/strings.xml",
             "message": "안드로이드 strings.xml 파일 생성 완료"
         }
-        
+
     except Exception as e:
         logger.error(f"안드로이드 strings.xml 생성 중 오류 발생: {str(e)}")
         return {
@@ -511,4 +519,4 @@ def register_android_agents(app_spec):
 
     except Exception as e:
         logger.error(f"안드로이드 에이전트 등록 중 오류 발생: {str(e)}")
-        return android_group_agent  # 오류 발생 시 기본 에이전트 반환 
+        return android_group_agent  # 오류 발생 시 기본 에이전트 반환

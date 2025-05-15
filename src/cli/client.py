@@ -38,10 +38,12 @@ def parse_args():
     subparsers = parser.add_subparsers(dest="command", help="명령")
 
     # 'status' 명령
-    status_parser = subparsers.add_parser("status", help="서버 상태 확인")
+    status_parser = subparsers.add_parser(
+        "status", help="서버 상태 확인")  # 향후 기능 확장 시 사용
 
     # 'list' 명령
-    list_parser = subparsers.add_parser("list", help="모든 작업 목록 조회")
+    list_parser = subparsers.add_parser(
+        "list", help="모든 작업 목록 조회")  # 향후 기능 확장 시 사용
 
     # 'create' 명령
     create_parser = subparsers.add_parser("create", help="새로운 Flutter 앱 생성")
@@ -161,7 +163,11 @@ async def show_job(job_id: str):
             reset = "\033[0m"
 
             print(f"작업 ID: {job_id}")
-            print(f"상태: {color}{status}{reset} ({job_data.get('progress', 0)}%)")
+            print(
+                f"상태: {color}{status}{reset} ({
+                    job_data.get(
+                        'progress',
+                        0)}%)")
             print(f"메시지: {job_data.get('message', '')}")
 
             if job_data.get("artifacts"):
@@ -169,7 +175,7 @@ async def show_job(job_id: str):
                 for i, artifact in enumerate(job_data["artifacts"][:5]):
                     print(f"  - {artifact}")
                 if len(job_data["artifacts"]) > 5:
-                    print(f"  ... 외 {len(job_data['artifacts'])-5}개")
+                    print(f"  ... 외 {len(job_data['artifacts']) - 5}개")
 
             return True
         except Exception as e:
@@ -223,8 +229,10 @@ async def create_app(spec_file: str):
                     if status in ["completed", "failed"]:
                         if status == "completed":
                             print("\n✅ 앱 생성 성공!")
-                            print(f"생성된 파일: {len(job_status.get('artifacts', []))}개")
-                            print(f"다운로드 명령: python -m src.cli.client download --job-id {job_id} --output ./output")
+                            print(
+                                f"생성된 파일: {len(job_status.get('artifacts', []))}개")
+                            print(
+                                f"다운로드 명령: python -m src.cli.client download --job-id {job_id} --output ./output")
                         else:
                             print("\n❌ 앱 생성 실패!")
                             print(f"오류 메시지: {message}")
@@ -278,7 +286,7 @@ async def download_app(job_id: str, output_dir: str):
                 print(f"오류: 작업이 완료되지 않았습니다. 현재 상태: {job_data['status']}")
                 return False
 
-            print(f"ZIP 파일 다운로드 중...")
+            print("ZIP 파일 다운로드 중...")
 
             # ZIP 파일 다운로드
             download_response = await client.get(
@@ -288,12 +296,14 @@ async def download_app(job_id: str, output_dir: str):
             download_response.raise_for_status()
 
             # 앱 이름 가져오기
-            app_name = "flutter_app"
-            if job_data.get("app_spec") and job_data["app_spec"].get("app_name"):
-                app_name = job_data["app_spec"]["app_name"]
+            app_name = "flutter_app"  # 향후 사용 예정
+            if job_data.get(
+                    "app_spec") and job_data["app_spec"].get("app_name"):
+                app_name = job_data["app_spec"]["app_name"]  # 향후 사용 예정
 
             # 파일 저장
-            output_path = os.path.join(output_dir, f"{app_name}.zip")
+            output_path = os.path.join(
+                output_dir, f"{app_name}.zip")  # 향후 사용 예정
             with open(output_path, "wb") as f:
                 f.write(download_response.content)
 

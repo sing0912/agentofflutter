@@ -2,7 +2,7 @@
 Dart 코드 생성 관련 유틸리티 함수들.
 """
 import re
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 
 
 def sanitize_dart_class_name(name: str) -> str:
@@ -95,13 +95,15 @@ def dart_type_from_python(py_type: str) -> str:
     if dict_match:
         key_type = dict_match.group(1)
         value_type = dict_match.group(2)
-        return f"Map<{dart_type_from_python(key_type)}, {dart_type_from_python(value_type)}>"
+        return f"Map<{
+            dart_type_from_python(key_type)}, {
+            dart_type_from_python(value_type)}>"
 
     return type_map.get(py_type.lower(), "dynamic")
 
 
 def generate_dart_imports(dependencies: List[str],
-                         dart_package_name: Optional[str] = None) -> str:
+                          dart_package_name: Optional[str] = None) -> str:
     """
     Dart import 구문을 생성합니다.
 

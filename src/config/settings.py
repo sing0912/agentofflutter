@@ -77,4 +77,3 @@ def get_agent_config(agent_type: str) -> Dict[str, Any]:
             base_config[key] = value
 
     return base_config
- 

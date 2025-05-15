@@ -65,7 +65,12 @@ def create_model_test_case(model_info, tool_context) -> None:
     }
 
     # 파일 생성 (템플릿 기반)
-    output_filename = f"test/{model_info['file'].replace('lib/', '').replace('.dart', '')}_test.dart"
+    output_filename = f"test/{
+        model_info['file'].replace(
+            'lib/',
+            '').replace(
+            '.dart',
+            '')}_test.dart"
 
     generate_dart_file_tool(
         template_name="model_test.dart.j2",

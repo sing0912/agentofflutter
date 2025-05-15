@@ -3,10 +3,10 @@ ADK 코드 생성 도구.
 
 이 모듈은 코드 생성을 위한 FunctionTool 구현을 포함합니다.
 """
-import os
-from typing import Dict, Any, Optional, List
+
+from typing import Dict, Any, Optional
 from pathlib import Path
-import json
+
 import jinja2
 
 from google.adk.tools import FunctionTool
