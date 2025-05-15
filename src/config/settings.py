@@ -22,7 +22,7 @@ DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gemini-1.5-flash")
 
 # API 서버 설정
 API_HOST = os.getenv("API_HOST", "0.0.0.0")
-API_PORT = int(os.getenv("API_PORT", "8000"))
+API_PORT = int(os.getenv("API_PORT", "8001"))
 API_DEBUG = os.getenv("API_DEBUG", "false").lower() == "true"
 
 # 데이터베이스 설정
