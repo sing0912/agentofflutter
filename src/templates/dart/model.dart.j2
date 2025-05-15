@@ -1,0 +1,79 @@
+// {{ class_name }} 모델 클래스
+// 
+// 이 파일은 Agent of Flutter에 의해 자동 생성되었습니다.
+//
+
+{% if dependencies %}
+{% for dependency in dependencies %}
+import '{{ dependency }}';
+{% endfor %}
+{% endif %}
+
+/// {{ class_name }} 클래스는 애플리케이션에서 사용자 정보를 나타냅니다.
+class {{ class_name }} {
+  {% for field in fields %}
+  final {{ field.type }}{% if field.nullable %}?{% endif %} {{ field.name }};
+  {% endfor %}
+
+  /// 기본 생성자
+  const {{ class_name }}({
+    {% for field in fields %}
+    required this.{{ field.name }},
+    {% endfor %}
+  });
+
+  /// JSON에서 객체를 생성하는 팩토리 생성자
+  factory {{ class_name }}.fromJson(Map<String, dynamic> json) {
+    return {{ class_name }}(
+      {% for field in fields %}
+      {{ field.name }}: json['{{ field.name }}']{% if field.type == 'DateTime' %} != null ? DateTime.parse(json['{{ field.name }}']) : null{% endif %},
+      {% endfor %}
+    );
+  }
+
+  /// 객체를 JSON으로 변환
+  Map<String, dynamic> toJson() {
+    return {
+      {% for field in fields %}
+      '{{ field.name }}': {% if field.type == 'DateTime' %}{{ field.name }}{% if field.nullable %}?{% endif %}.toIso8601String(){% else %}{{ field.name }}{% endif %},
+      {% endfor %}
+    };
+  }
+
+  /// 새로운 속성으로 객체 복사
+  {{ class_name }} copyWith({
+    {% for field in fields %}
+    {{ field.type }}{% if field.nullable %}?{% endif %} {{ field.name }},
+    {% endfor %}
+  }) {
+    return {{ class_name }}(
+      {% for field in fields %}
+      {{ field.name }}: {{ field.name }} ?? this.{{ field.name }},
+      {% endfor %}
+    );
+  }
+
+  @override
+  String toString() {
+    return '{{ class_name }}({% for field in fields %}{{ field.name }}: ${{ field.name }}{% if not loop.last %}, {% endif %}{% endfor %})';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is {{ class_name }}
+      {% for field in fields %}
+      && other.{{ field.name }} == {{ field.name }}{% if not loop.last %}
+      {% endif %}
+      {% endfor %};
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      {% for field in fields %}
+      {{ field.name }}{% if not loop.last %},{% endif %}
+      {% endfor %}
+    );
+  }
+} 

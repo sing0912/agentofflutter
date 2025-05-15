@@ -1,0 +1,162 @@
+// {{ controller_name }} 컨트롤러
+// 
+// 이 파일은 Agent of Flutter에 의해 자동 생성되었습니다.
+//
+
+{% if dependencies %}
+{% for dependency in dependencies %}
+import '{{ dependency }}';
+{% endfor %}
+{% endif %}
+
+/// {{ controller_name }} 클래스는 {% if controller_name == "UserController" %}사용자 관련{% else %}{{ controller_name }}{% endif %} 상태와 비즈니스 로직을 관리합니다.
+class {{ controller_name }} extends ChangeNotifier {
+  {% if uses_model %}
+  {{ model_name }}? _{{ model_name|lower }};
+  bool _isLoading = false;
+  String? _errorMessage;
+  
+  /// 현재 {{ model_name|lower }} 정보 getter
+  {{ model_name }}? get {{ model_name|lower }} => _{{ model_name|lower }};
+  
+  /// 로딩 상태 getter
+  bool get isLoading => _isLoading;
+  
+  /// 오류 메시지 getter
+  String? get errorMessage => _errorMessage;
+  {% endif %}
+  
+  {% if state_management == "provider" %}
+  /// 사용자 로그인 상태
+  bool _isLoggedIn = false;
+  
+  /// 로그인 상태 getter
+  bool get isLoggedIn => _isLoggedIn;
+  {% endif %}
+  
+  {% if "login" in features %}
+  /// 로그인 메서드
+  Future<bool> login(String email, String password) async {
+    try {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+      
+      // TODO: 실제 로그인 로직 구현
+      await Future.delayed(const Duration(seconds: 1));
+      
+      // 여기서는 임시로 로그인 성공을 가정합니다
+      {% if uses_model %}
+      final userData = {
+        'id': '1',
+        'email': email,
+        'name': 'User',
+        'createdAt': DateTime.now().toIso8601String(),
+      };
+      
+      _{{ model_name|lower }} = {{ model_name }}.fromJson(userData);
+      {% endif %}
+      
+      _isLoggedIn = true;
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+  {% endif %}
+  
+  {% if "logout" in features %}
+  /// 로그아웃 메서드
+  Future<void> logout() async {
+    try {
+      _isLoading = true;
+      notifyListeners();
+      
+      // TODO: 실제 로그아웃 로직 구현
+      await Future.delayed(const Duration(seconds: 1));
+      
+      {% if uses_model %}
+      _{{ model_name|lower }} = null;
+      {% endif %}
+      _isLoggedIn = false;
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+  {% endif %}
+  
+  {% if "getUserInfo" in features %}
+  /// 사용자 정보 로드 메서드
+  Future<void> getUserInfo() async {
+    try {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+      
+      // TODO: 실제 사용자 정보 로드 로직 구현
+      await Future.delayed(const Duration(seconds: 1));
+      
+      {% if uses_model %}
+      // 예시 데이터
+      final userData = {
+        'id': '1',
+        'email': 'user@example.com',
+        'name': 'Sample User',
+        'createdAt': DateTime.now().toIso8601String(),
+      };
+      
+      _{{ model_name|lower }} = {{ model_name }}.fromJson(userData);
+      {% endif %}
+      
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+  {% endif %}
+  
+  {% if "updateUserInfo" in features %}
+  /// 사용자 정보 업데이트 메서드
+  Future<bool> updateUserInfo({String? name, String? email}) async {
+    try {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+      
+      // TODO: 실제 사용자 정보 업데이트 로직 구현
+      await Future.delayed(const Duration(seconds: 1));
+      
+      {% if uses_model %}
+      // 현재 모델 복사 및 업데이트
+      if (_{{ model_name|lower }} != null) {
+        _{{ model_name|lower }} = _{{ model_name|lower }}!.copyWith(
+          name: name,
+          email: email,
+        );
+      }
+      {% endif %}
+      
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+  {% endif %}
+} 

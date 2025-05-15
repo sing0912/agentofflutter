@@ -1,0 +1,56 @@
+"""
+{{ router_name }} 라우트
+
+이 파일은 Agent of Flutter에 의해 자동 생성되었습니다.
+"""
+from typing import List, Dict, Optional
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from app.db.database import get_db
+from app.models.{{ router_name }} import {{ router_name|capitalize }}Create, {{ router_name|capitalize }}Response, {{ router_name|capitalize }}Update
+from app.services.{{ router_name }}_service import get_{{ router_name }}_by_id, get_all_{{ router_name }}, create_{{ router_name }}, update_{{ router_name }}, delete_{{ router_name }}
+
+router = APIRouter()
+
+{% for endpoint in endpoints %}
+@router.{{ endpoint.method|lower }}("{{ endpoint.path }}", response_model={{ endpoint.response_model }})
+async def {{ endpoint.method|lower }}_{{ router_name }}{{ '_by_id' if '{' in endpoint.path else '' }}(
+    {% if '{' in endpoint.path %}{{ endpoint.path.split('{')[1].split('}')[0] }}: str,{% endif %}
+    {% if endpoint.method|lower == 'post' or endpoint.method|lower == 'put' %}{{ router_name }}_data: {{ router_name|capitalize }}{{ 'Create' if endpoint.method|lower == 'post' else 'Update' }},{% endif %}
+    db: Session = Depends(get_db)
+):
+    """
+    {{ endpoint.summary }}
+    """
+    {% if endpoint.method|lower == 'get' and '{' not in endpoint.path %}
+    return await get_all_{{ router_name }}(db)
+    {% elif endpoint.method|lower == 'get' %}
+    {{ router_name }} = await get_{{ router_name }}_by_id(db, {{ endpoint.path.split('{')[1].split('}')[0] }})
+    if {{ router_name }} is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="{{ router_name|capitalize }} not found"
+        )
+    return {{ router_name }}
+    {% elif endpoint.method|lower == 'post' %}
+    return await create_{{ router_name }}(db, {{ router_name }}_data)
+    {% elif endpoint.method|lower == 'put' %}
+    {{ router_name }} = await update_{{ router_name }}(db, {{ endpoint.path.split('{')[1].split('}')[0] }}, {{ router_name }}_data)
+    if {{ router_name }} is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="{{ router_name|capitalize }} not found"
+        )
+    return {{ router_name }}
+    {% elif endpoint.method|lower == 'delete' %}
+    success = await delete_{{ router_name }}(db, {{ endpoint.path.split('{')[1].split('}')[0] }})
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="{{ router_name|capitalize }} not found"
+        )
+    return {"message": "{{ router_name|capitalize }} deleted successfully"}
+    {% endif %}
+
+{% endfor %} 

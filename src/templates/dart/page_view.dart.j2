@@ -1,0 +1,164 @@
+// {{ widget_name }} 위젯
+// 
+// 이 파일은 Agent of Flutter에 의해 자동 생성되었습니다.
+//
+
+{% if dependencies %}
+{% for dependency in dependencies %}
+import '{{ dependency }}';
+{% endfor %}
+{% endif %}
+
+/// {{ widget_name }} 위젯은 애플리케이션의 {% if widget_name == "HomePage" %}홈 화면{% else %}{{ widget_name }} 화면{% endif %}을 표시합니다.
+class {{ widget_name }} extends {{ widget_type }} {
+  const {{ widget_name }}({Key? key}) : super(key: key);
+  
+  {% if widget_type == "StatefulWidget" %}
+  @override
+  _{{ widget_name }}State createState() => _{{ widget_name }}State();
+}
+
+class _{{ widget_name }}State extends State<{{ widget_name }}> {
+  {% if uses_model %}
+  {{ model_name }}? _{{ model_name|lower }};
+  bool _isLoading = true;
+  String? _errorMessage;
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+  
+  Future<void> _loadData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+      
+      // TODO: 여기에서 실제 데이터 로드 로직을 구현하세요
+      await Future.delayed(const Duration(seconds: 1));
+      
+      // 예시 데이터
+      final data = {{ model_name }}.fromJson({
+        'id': '1',
+        'name': '홍길동',
+        'email': 'hong@example.com',
+        'createdAt': DateTime.now().toIso8601String(),
+      });
+      
+      setState(() {
+        _{{ model_name|lower }} = data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+  {% endif %}
+  
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('{% if widget_name == "HomePage" %}홈{% else %}{{ widget_name }}{% endif %}'),
+      ),
+      body: {% if uses_model %}
+      _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+              ? Center(child: Text('오류: $_errorMessage'))
+              : _buildContent()
+      {% else %}
+      _buildContent()
+      {% endif %},
+    );
+  }
+  
+  Widget _buildContent() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            {% if uses_model %}
+            if (_{{ model_name|lower }} != null) ...[
+              const Text(
+                '사용자 정보',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('이름: ${_{{ model_name|lower }}!.name}'),
+                      const SizedBox(height: 8),
+                      Text('이메일: ${_{{ model_name|lower }}!.email}'),
+                      const SizedBox(height: 8),
+                      Text('생성일: ${_{{ model_name|lower }}!.createdAt}'),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            {% else %}
+            const Text(
+              '{{ widget_name }}',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            const Text('이 화면은 {{ widget_name }} 위젯에 의해 렌더링됩니다.'),
+            {% endif %}
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () {
+                // TODO: 버튼 기능 구현
+              },
+              child: const Text('계속하기'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  {% else %}
+  
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('{% if widget_name == "HomePage" %}홈{% else %}{{ widget_name }}{% endif %}'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              '{{ widget_name }}',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            const Text('이 화면은 {{ widget_name }} 위젯에 의해 렌더링됩니다.'),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () {
+                // TODO: 버튼 기능 구현
+              },
+              child: const Text('계속하기'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  {% endif %}
+} 
