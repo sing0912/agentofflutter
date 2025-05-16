@@ -5,7 +5,7 @@ TDDGroupAgent: TDD 작업을 조정하는 그룹 에이전트.
 """
 from google.adk import Agent
 
-from src.agents.tdd_group.model_test_agent import model_test_agent
+from src.agents.tdd_group.model_test_case_agent import model_test_case_agent
 from src.agents.tdd_group.android_test_agent import android_test_agent
 from src.utils.logger import logger
 
@@ -15,7 +15,7 @@ tdd_group_agent = Agent(
     name="TDDGroupAgent",
     description="TDD 작업을 순차적으로 수행하는 에이전트 그룹",
     sub_agents=[
-        model_test_agent,
+        model_test_case_agent,
         android_test_agent
     ]
 )
@@ -33,7 +33,7 @@ def register_tdd_agents(app_spec):
     """
     try:
         # 기본 TDD 에이전트 목록 (항상 포함)
-        agents = [model_test_agent, android_test_agent]
+        agents = [model_test_case_agent, android_test_agent]
 
         # 앱 명세에 따라 추가 TDD 에이전트 등록
         if "tests" in app_spec:
