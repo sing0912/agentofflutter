@@ -566,12 +566,310 @@ This is a Flutter application.
             f.write(readme_content)
         api_logger.info(f"README.md 파일 생성 완료: {readme_file_path}")
         
-        # 생성된 모든 파일 목록
+        # 안드로이드 파일 생성
+        api_logger.info("안드로이드 파일 생성 시작")
+        
+        # 안드로이드 디렉토리 구조 생성
+        android_dir = os.path.join(job_output_dir, "android")
+        android_app_dir = os.path.join(android_dir, "app")
+        android_app_src_main_dir = os.path.join(android_app_dir, "src", "main")
+        android_app_src_main_kotlin_dir = os.path.join(android_app_src_main_dir, "kotlin", "com", "example", app_name.lower().replace('-', '_').replace(' ', '_'))
+        android_app_src_main_res_dir = os.path.join(android_app_src_main_dir, "res")
+        android_app_src_main_res_values_dir = os.path.join(android_app_src_main_res_dir, "values")
+        android_app_src_main_res_drawable_dir = os.path.join(android_app_src_main_res_dir, "drawable")
+        android_app_src_main_res_drawable_v21_dir = os.path.join(android_app_src_main_res_dir, "drawable-v21")
+        android_gradle_wrapper_dir = os.path.join(android_dir, "gradle", "wrapper")
+        
+        # 디렉토리 생성
+        os.makedirs(android_dir, exist_ok=True)
+        os.makedirs(android_app_dir, exist_ok=True)
+        os.makedirs(android_app_src_main_dir, exist_ok=True)
+        os.makedirs(android_app_src_main_kotlin_dir, exist_ok=True)
+        os.makedirs(android_app_src_main_res_values_dir, exist_ok=True)
+        os.makedirs(android_app_src_main_res_drawable_dir, exist_ok=True)
+        os.makedirs(android_app_src_main_res_drawable_v21_dir, exist_ok=True)
+        os.makedirs(android_gradle_wrapper_dir, exist_ok=True)
+        
+        # 앱 이름을 소문자화하고 공백과 특수문자 제거 (패키지명용)
+        app_name_slug = app_name.lower().replace('-', '_').replace(' ', '_')
+        
+        # android/build.gradle 파일 생성
+        android_build_gradle_path = os.path.join(android_dir, "build.gradle")
+        android_build_gradle_content = """buildscript {
+    ext.kotlin_version = '1.8.0'
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:7.3.0'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.buildDir = '../build'
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(':app')
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}"""
+        
+        with open(android_build_gradle_path, 'w') as f:
+            f.write(android_build_gradle_content)
+        api_logger.info(f"android/build.gradle 파일 생성 완료: {android_build_gradle_path}")
+        
+        # android/settings.gradle 파일 생성
+        android_settings_gradle_path = os.path.join(android_dir, "settings.gradle")
+        android_settings_gradle_content = """include ':app'
+
+def localPropertiesFile = new File(rootProject.projectDir, "local.properties")
+def properties = new Properties()
+
+assert localPropertiesFile.exists()
+localPropertiesFile.withReader("UTF-8") { reader -> properties.load(reader) }
+
+def flutterSdkPath = properties.getProperty("flutter.sdk")
+assert flutterSdkPath != null, "flutter.sdk not set in local.properties"
+apply from: "$flutterSdkPath/packages/flutter_tools/gradle/app_plugin_loader.gradle" """
+        
+        with open(android_settings_gradle_path, 'w') as f:
+            f.write(android_settings_gradle_content)
+        api_logger.info(f"android/settings.gradle 파일 생성 완료: {android_settings_gradle_path}")
+        
+        # android/local.properties 파일 생성
+        android_local_properties_path = os.path.join(android_dir, "local.properties")
+        android_local_properties_content = "flutter.sdk=/path/to/your/flutter/sdk"
+        
+        with open(android_local_properties_path, 'w') as f:
+            f.write(android_local_properties_content)
+        api_logger.info(f"android/local.properties 파일 생성 완료: {android_local_properties_path}")
+        
+        # android/app/build.gradle 파일 생성
+        android_app_build_gradle_path = os.path.join(android_app_dir, "build.gradle")
+        android_app_build_gradle_content = f"""def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {{
+    localPropertiesFile.withReader('UTF-8') {{ reader ->
+        localProperties.load(reader)
+    }}
+}}
+
+def flutterRoot = localProperties.getProperty('flutter.sdk')
+if (flutterRoot == null) {{
+    throw new RuntimeException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
+}}
+
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+if (flutterVersionCode == null) {{
+    flutterVersionCode = '1'
+}}
+
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
+if (flutterVersionName == null) {{
+    flutterVersionName = '1.0'
+}}
+
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
+
+android {{
+    compileSdkVersion 33
+    ndkVersion flutter.ndkVersion
+
+    compileOptions {{
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }}
+
+    kotlinOptions {{
+        jvmTarget = '1.8'
+    }}
+
+    sourceSets {{
+        main.java.srcDirs += 'src/main/kotlin'
+    }}
+
+    defaultConfig {{
+        applicationId "com.example.{app_name_slug}"
+        minSdkVersion 21
+        targetSdkVersion 33
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+    }}
+
+    buildTypes {{
+        release {{
+            signingConfig signingConfigs.debug
+        }}
+    }}
+}}
+
+flutter {{
+    source '../..'
+}}
+
+dependencies {{
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+}}"""
+        
+        with open(android_app_build_gradle_path, 'w') as f:
+            f.write(android_app_build_gradle_content)
+        api_logger.info(f"android/app/build.gradle 파일 생성 완료: {android_app_build_gradle_path}")
+        
+        # android/app/src/main/AndroidManifest.xml 파일 생성
+        android_manifest_path = os.path.join(android_app_src_main_dir, "AndroidManifest.xml")
+        android_manifest_content = f"""<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:name="${{applicationName}}"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name">
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:exported="true"
+            android:hardwareAccelerated="true"
+            android:launchMode="singleTop"
+            android:theme="@style/LaunchTheme"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+</manifest>"""
+        
+        with open(android_manifest_path, 'w') as f:
+            f.write(android_manifest_content)
+        api_logger.info(f"AndroidManifest.xml 파일 생성 완료: {android_manifest_path}")
+        
+        # android/app/src/main/kotlin/com/example/app_name/MainActivity.kt 파일 생성
+        android_main_activity_path = os.path.join(android_app_src_main_kotlin_dir, "MainActivity.kt")
+        android_main_activity_content = f"""package com.example.{app_name_slug}
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity: FlutterActivity() {{
+}}"""
+        
+        with open(android_main_activity_path, 'w') as f:
+            f.write(android_main_activity_content)
+        api_logger.info(f"MainActivity.kt 파일 생성 완료: {android_main_activity_path}")
+        
+        # android/app/src/main/res/values/strings.xml 파일 생성
+        android_strings_path = os.path.join(android_app_src_main_res_values_dir, "strings.xml")
+        android_strings_content = f"""<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">{app_name}</string>
+</resources>"""
+        
+        with open(android_strings_path, 'w') as f:
+            f.write(android_strings_content)
+        api_logger.info(f"strings.xml 파일 생성 완료: {android_strings_path}")
+        
+        # android/app/src/main/res/values/styles.xml 파일 생성
+        android_styles_path = os.path.join(android_app_src_main_res_values_dir, "styles.xml")
+        android_styles_content = """<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Theme applied to the Android Window while the process is starting when the OS's Dark Mode setting is off -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <!-- Show a splash screen on the activity. Automatically removed when
+             the Flutter engine draws its first frame -->
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+    <!-- Theme applied to the Android Window as soon as the process has started.
+         This theme determines the color of the Android Window while your
+         Flutter UI initializes, as well as behind your Flutter UI while its
+         running.
+         
+         This Theme is only used starting with V2 of Flutter's Android embedding. -->
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>"""
+        
+        with open(android_styles_path, 'w') as f:
+            f.write(android_styles_content)
+        api_logger.info(f"styles.xml 파일 생성 완료: {android_styles_path}")
+        
+        # android/app/src/main/res/drawable/launch_background.xml 파일 생성
+        android_launch_background_path = os.path.join(android_app_src_main_res_drawable_dir, "launch_background.xml")
+        android_launch_background_content = """<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@android:color/white" />
+</layer-list>"""
+        
+        with open(android_launch_background_path, 'w') as f:
+            f.write(android_launch_background_content)
+        api_logger.info(f"launch_background.xml 파일 생성 완료: {android_launch_background_path}")
+        
+        # android/app/src/main/res/drawable-v21/launch_background.xml 파일 생성
+        android_launch_background_v21_path = os.path.join(android_app_src_main_res_drawable_v21_dir, "launch_background.xml")
+        android_launch_background_v21_content = """<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="?android:colorBackground" />
+</layer-list>"""
+        
+        with open(android_launch_background_v21_path, 'w') as f:
+            f.write(android_launch_background_v21_content)
+        api_logger.info(f"launch_background_v21.xml 파일 생성 완료: {android_launch_background_v21_path}")
+        
+        # android/gradle/wrapper/gradle-wrapper.properties 파일 생성
+        android_gradle_wrapper_path = os.path.join(android_gradle_wrapper_dir, "gradle-wrapper.properties")
+        android_gradle_wrapper_content = """distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
+distributionUrl=https\\://services.gradle.org/distributions/gradle-7.5-all.zip"""
+        
+        with open(android_gradle_wrapper_path, 'w') as f:
+            f.write(android_gradle_wrapper_content)
+        api_logger.info(f"gradle-wrapper.properties 파일 생성 완료: {android_gradle_wrapper_path}")
+        
+        # 안드로이드 관련 파일 목록
+        android_files = [
+            "android/build.gradle",
+            "android/settings.gradle",
+            "android/local.properties",
+            "android/app/build.gradle",
+            "android/app/src/main/AndroidManifest.xml",
+            f"android/app/src/main/kotlin/com/example/{app_name_slug}/MainActivity.kt",
+            "android/app/src/main/res/values/strings.xml",
+            "android/app/src/main/res/values/styles.xml",
+            "android/app/src/main/res/drawable/launch_background.xml",
+            "android/app/src/main/res/drawable-v21/launch_background.xml",
+            "android/gradle/wrapper/gradle-wrapper.properties"
+        ]
+        
+        api_logger.info("안드로이드 파일 생성 완료")
+        
+        # 생성된 모든 파일 목록 (안드로이드 파일 추가)
         artifact_files = [
             "lib/main.dart",
             "pubspec.yaml",
             "README.md"
-        ] + [f"lib/{file}" for file in model_files + page_files]
+        ] + [f"lib/{file}" for file in model_files + page_files] + android_files
         
         # 작업 상태 업데이트
         active_jobs[job_id]["status"] = "completed"
@@ -581,7 +879,7 @@ This is a Flutter application.
         
         api_logger.info(
             f"앱 생성 완료: {app_name}, "
-            f"파일 생성 수: {len(model_files) + len(page_files) + 3}"
+            f"파일 생성 수: {len(model_files) + len(page_files) + 3 + len(android_files)}"
         )
         
         # 디버그: 최종 파일 확인
@@ -942,12 +1240,416 @@ async def root():
                 "description": "모든 아티팩트를 ZIP으로 다운로드"
             },
             {
+                "path": "/generate_android_files/{job_id}",
+                "method": "POST",
+                "description": "기존 Flutter 앱에 안드로이드 빌드 파일 추가"
+            },
+            {
                 "path": "/status",
                 "method": "GET",
                 "description": "서버 상태 조회"
             }
         ]
     }
+
+
+@app.post("/generate_android_files/{job_id}")
+async def generate_android_files(job_id: str):
+    """
+    기존 Flutter 앱에 안드로이드 빌드 파일을 추가합니다.
+    
+    Args:
+        job_id: 작업 ID
+    """
+    try:
+        # 작업 ID가 유효한지 확인
+        if job_id not in active_jobs:
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"작업 ID {job_id}를 찾을 수 없습니다."}
+            )
+        
+        # 작업 상태 갱신
+        active_jobs[job_id]["status"] = "running"
+        active_jobs[job_id]["progress"] = 50
+        active_jobs[job_id]["message"] = "안드로이드 빌드 파일 생성 중..."
+        
+        # 앱 명세 가져오기
+        app_spec = active_jobs[job_id].get("app_spec", {})
+        folder_name = active_jobs[job_id].get("folder_name", job_id)
+        
+        # 안드로이드 파일 생성 함수 호출
+        await generate_android_build_files(job_id, app_spec, folder_name)
+        
+        return {
+            "job_id": job_id,
+            "status": active_jobs[job_id]["status"],
+            "progress": active_jobs[job_id]["progress"],
+            "message": active_jobs[job_id]["message"],
+            "artifacts": active_jobs[job_id]["artifacts"]
+        }
+        
+    except Exception as e:
+        api_logger.error(f"안드로이드 빌드 파일 생성 중 오류 발생: {str(e)}")
+        if job_id in active_jobs:
+            active_jobs[job_id]["status"] = "failed"
+            active_jobs[job_id]["message"] = f"안드로이드 빌드 파일 생성 중 오류 발생: {str(e)}"
+        
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"안드로이드 빌드 파일 생성 중 오류 발생: {str(e)}"}
+        )
+
+
+async def generate_android_build_files(job_id: str, app_spec: dict, folder_name: str):
+    """
+    안드로이드 빌드 파일을 생성합니다.
+    
+    Args:
+        job_id: 작업 ID
+        app_spec: 앱 명세 딕셔너리
+        folder_name: 폴더명
+    """
+    try:
+        # 앱 이름 가져오기
+        app_name = app_spec.get("app_name", "flutter_app")
+        
+        # 출력 디렉토리 설정
+        job_output_dir = os.path.join(FLUTTER_OUTPUT_DIR, folder_name)
+        if not os.path.exists(job_output_dir):
+            os.makedirs(job_output_dir, exist_ok=True)
+            api_logger.info(f"작업 디렉토리 생성 완료: {job_output_dir}")
+        
+        # 안드로이드 디렉토리 구조 생성
+        android_dir = os.path.join(job_output_dir, "android")
+        android_app_dir = os.path.join(android_dir, "app")
+        android_app_src_main_dir = os.path.join(android_app_dir, "src", "main")
+        android_app_src_main_kotlin_dir = os.path.join(
+            android_app_src_main_dir, 
+            "kotlin", "com", "example", 
+            app_name.lower().replace('-', '_').replace(' ', '_')
+        )
+        android_app_src_main_res_dir = os.path.join(android_app_src_main_dir, "res")
+        android_app_src_main_res_values_dir = os.path.join(android_app_src_main_res_dir, "values")
+        android_app_src_main_res_drawable_dir = os.path.join(android_app_src_main_res_dir, "drawable")
+        android_app_src_main_res_drawable_v21_dir = os.path.join(android_app_src_main_res_dir, "drawable-v21")
+        android_gradle_wrapper_dir = os.path.join(android_dir, "gradle", "wrapper")
+        
+        # 디렉토리 생성
+        os.makedirs(android_dir, exist_ok=True)
+        os.makedirs(android_app_dir, exist_ok=True)
+        os.makedirs(android_app_src_main_dir, exist_ok=True)
+        os.makedirs(android_app_src_main_kotlin_dir, exist_ok=True)
+        os.makedirs(android_app_src_main_res_values_dir, exist_ok=True)
+        os.makedirs(android_app_src_main_res_drawable_dir, exist_ok=True)
+        os.makedirs(android_app_src_main_res_drawable_v21_dir, exist_ok=True)
+        os.makedirs(android_gradle_wrapper_dir, exist_ok=True)
+        
+        # 앱 이름을 소문자화하고 공백과 특수문자 제거 (패키지명용)
+        app_name_slug = app_name.lower().replace('-', '_').replace(' ', '_')
+        
+        # 안드로이드 파일 생성 로직 (기존 코드와 동일)
+        # android/build.gradle 파일 생성
+        android_build_gradle_path = os.path.join(android_dir, "build.gradle")
+        android_build_gradle_content = """buildscript {
+    ext.kotlin_version = '1.8.0'
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:7.3.0'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.buildDir = '../build'
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(':app')
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}"""
+        
+        with open(android_build_gradle_path, 'w') as f:
+            f.write(android_build_gradle_content)
+        api_logger.info(f"android/build.gradle 파일 생성 완료: {android_build_gradle_path}")
+        
+        # 나머지 안드로이드 파일 생성 로직 (이미 app.py에 존재하는 코드와 동일)
+        # ...
+        
+        # android/settings.gradle 파일 생성
+        android_settings_gradle_path = os.path.join(android_dir, "settings.gradle")
+        android_settings_gradle_content = """include ':app'
+
+def localPropertiesFile = new File(rootProject.projectDir, "local.properties")
+def properties = new Properties()
+
+assert localPropertiesFile.exists()
+localPropertiesFile.withReader("UTF-8") { reader -> properties.load(reader) }
+
+def flutterSdkPath = properties.getProperty("flutter.sdk")
+assert flutterSdkPath != null, "flutter.sdk not set in local.properties"
+apply from: "$flutterSdkPath/packages/flutter_tools/gradle/app_plugin_loader.gradle" """
+        
+        with open(android_settings_gradle_path, 'w') as f:
+            f.write(android_settings_gradle_content)
+        api_logger.info(f"android/settings.gradle 파일 생성 완료: {android_settings_gradle_path}")
+        
+        # android/local.properties 파일 생성
+        android_local_properties_path = os.path.join(android_dir, "local.properties")
+        android_local_properties_content = "flutter.sdk=/path/to/your/flutter/sdk"
+        
+        with open(android_local_properties_path, 'w') as f:
+            f.write(android_local_properties_content)
+        api_logger.info(f"android/local.properties 파일 생성 완료: {android_local_properties_path}")
+        
+        # android/app/build.gradle 파일 생성
+        android_app_build_gradle_path = os.path.join(android_app_dir, "build.gradle")
+        android_app_build_gradle_content = f"""def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {{
+    localPropertiesFile.withReader('UTF-8') {{ reader ->
+        localProperties.load(reader)
+    }}
+}}
+
+def flutterRoot = localProperties.getProperty('flutter.sdk')
+if (flutterRoot == null) {{
+    throw new RuntimeException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
+}}
+
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+if (flutterVersionCode == null) {{
+    flutterVersionCode = '1'
+}}
+
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
+if (flutterVersionName == null) {{
+    flutterVersionName = '1.0'
+}}
+
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
+
+android {{
+    compileSdkVersion 33
+    ndkVersion flutter.ndkVersion
+
+    compileOptions {{
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }}
+
+    kotlinOptions {{
+        jvmTarget = '1.8'
+    }}
+
+    sourceSets {{
+        main.java.srcDirs += 'src/main/kotlin'
+    }}
+
+    defaultConfig {{
+        applicationId "com.example.{app_name_slug}"
+        minSdkVersion 21
+        targetSdkVersion 33
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+    }}
+
+    buildTypes {{
+        release {{
+            signingConfig signingConfigs.debug
+        }}
+    }}
+}}
+
+flutter {{
+    source '../..'
+}}
+
+dependencies {{
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+}}"""
+        
+        with open(android_app_build_gradle_path, 'w') as f:
+            f.write(android_app_build_gradle_content)
+        api_logger.info(f"android/app/build.gradle 파일 생성 완료: {android_app_build_gradle_path}")
+        
+        # android/app/src/main/AndroidManifest.xml 파일 생성
+        android_manifest_path = os.path.join(android_app_src_main_dir, "AndroidManifest.xml")
+        android_manifest_content = f"""<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:name="${{applicationName}}"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name">
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:exported="true"
+            android:hardwareAccelerated="true"
+            android:launchMode="singleTop"
+            android:theme="@style/LaunchTheme"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+</manifest>"""
+        
+        with open(android_manifest_path, 'w') as f:
+            f.write(android_manifest_content)
+        api_logger.info(f"AndroidManifest.xml 파일 생성 완료: {android_manifest_path}")
+        
+        # android/app/src/main/kotlin/com/example/app_name/MainActivity.kt 파일 생성
+        android_main_activity_path = os.path.join(android_app_src_main_kotlin_dir, "MainActivity.kt")
+        android_main_activity_content = f"""package com.example.{app_name_slug}
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity: FlutterActivity() {{
+}}"""
+        
+        with open(android_main_activity_path, 'w') as f:
+            f.write(android_main_activity_content)
+        api_logger.info(f"MainActivity.kt 파일 생성 완료: {android_main_activity_path}")
+        
+        # android/app/src/main/res/values/strings.xml 파일 생성
+        android_strings_path = os.path.join(android_app_src_main_res_values_dir, "strings.xml")
+        android_strings_content = f"""<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">{app_name}</string>
+</resources>"""
+        
+        with open(android_strings_path, 'w') as f:
+            f.write(android_strings_content)
+        api_logger.info(f"strings.xml 파일 생성 완료: {android_strings_path}")
+        
+        # android/app/src/main/res/values/styles.xml 파일 생성
+        android_styles_path = os.path.join(android_app_src_main_res_values_dir, "styles.xml")
+        android_styles_content = """<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Theme applied to the Android Window while the process is starting when the OS's Dark Mode setting is off -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <!-- Show a splash screen on the activity. Automatically removed when
+             the Flutter engine draws its first frame -->
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+    <!-- Theme applied to the Android Window as soon as the process has started.
+         This theme determines the color of the Android Window while your
+         Flutter UI initializes, as well as behind your Flutter UI while its
+         running.
+         
+         This Theme is only used starting with V2 of Flutter's Android embedding. -->
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>"""
+        
+        with open(android_styles_path, 'w') as f:
+            f.write(android_styles_content)
+        api_logger.info(f"styles.xml 파일 생성 완료: {android_styles_path}")
+        
+        # android/app/src/main/res/drawable/launch_background.xml 파일 생성
+        android_launch_background_path = os.path.join(android_app_src_main_res_drawable_dir, "launch_background.xml")
+        android_launch_background_content = """<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@android:color/white" />
+</layer-list>"""
+        
+        with open(android_launch_background_path, 'w') as f:
+            f.write(android_launch_background_content)
+        api_logger.info(f"launch_background.xml 파일 생성 완료: {android_launch_background_path}")
+        
+        # android/app/src/main/res/drawable-v21/launch_background.xml 파일 생성
+        android_launch_background_v21_path = os.path.join(android_app_src_main_res_drawable_v21_dir, "launch_background.xml")
+        android_launch_background_v21_content = """<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="?android:colorBackground" />
+</layer-list>"""
+        
+        with open(android_launch_background_v21_path, 'w') as f:
+            f.write(android_launch_background_v21_content)
+        api_logger.info(f"launch_background_v21.xml 파일 생성 완료: {android_launch_background_v21_path}")
+        
+        # android/gradle/wrapper/gradle-wrapper.properties 파일 생성
+        android_gradle_wrapper_path = os.path.join(android_gradle_wrapper_dir, "gradle-wrapper.properties")
+        android_gradle_wrapper_content = """distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
+distributionUrl=https\\://services.gradle.org/distributions/gradle-7.5-all.zip"""
+        
+        with open(android_gradle_wrapper_path, 'w') as f:
+            f.write(android_gradle_wrapper_content)
+        api_logger.info(f"gradle-wrapper.properties 파일 생성 완료: {android_gradle_wrapper_path}")
+        
+        # 안드로이드 관련 파일 목록
+        android_files = [
+            "android/build.gradle",
+            "android/settings.gradle",
+            "android/local.properties",
+            "android/app/build.gradle",
+            "android/app/src/main/AndroidManifest.xml",
+            f"android/app/src/main/kotlin/com/example/{app_name_slug}/MainActivity.kt",
+            "android/app/src/main/res/values/strings.xml",
+            "android/app/src/main/res/values/styles.xml",
+            "android/app/src/main/res/drawable/launch_background.xml",
+            "android/app/src/main/res/drawable-v21/launch_background.xml",
+            "android/gradle/wrapper/gradle-wrapper.properties"
+        ]
+        
+        api_logger.info("안드로이드 파일 생성 완료")
+        
+        # 기존 아티팩트 목록 가져오기
+        existing_artifacts = active_jobs[job_id].get("artifacts", [])
+        
+        # 안드로이드 아티팩트 추가
+        for android_file in android_files:
+            if android_file not in existing_artifacts:
+                existing_artifacts.append(android_file)
+        
+        # 작업 상태 업데이트
+        active_jobs[job_id]["status"] = "completed"
+        active_jobs[job_id]["progress"] = 100
+        active_jobs[job_id]["message"] = "안드로이드 빌드 파일 생성 완료"
+        active_jobs[job_id]["artifacts"] = existing_artifacts
+        
+        return True
+    
+    except Exception as e:
+        api_logger.error(f"안드로이드 빌드 파일 생성 중 오류 발생: {str(e)}")
+        import traceback
+        api_logger.error(f"상세 오류: {traceback.format_exc()}")
+        
+        # 작업 실패 표시
+        if job_id in active_jobs:
+            active_jobs[job_id]["status"] = "failed"
+            active_jobs[job_id]["message"] = f"안드로이드 빌드 파일 생성 중 오류 발생: {str(e)}"
+        
+        return False
 
 
 def start_server():

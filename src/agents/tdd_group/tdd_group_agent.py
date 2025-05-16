@@ -1,21 +1,22 @@
 """
-TDDGroupAgent: 테스트 케이스 생성을 조정하는 그룹 에이전트.
+TDDGroupAgent: TDD 작업을 조정하는 그룹 에이전트.
 
-이 에이전트는 여러 테스트 케이스 생성 에이전트의 실행을 조정합니다.
+이 에이전트는 여러 TDD 에이전트의 실행을 조정합니다.
 """
-from google.adk.agents import SequentialAgent
+from google.adk import Agent
 
-from src.agents.tdd_group.model_test_case_agent import model_test_case_agent
+from src.agents.tdd_group.model_test_agent import model_test_agent
+from src.agents.tdd_group.android_test_agent import android_test_agent
 from src.utils.logger import logger
 
 
 # TDD 그룹 에이전트 정의
-tdd_group_agent = SequentialAgent(
+tdd_group_agent = Agent(
     name="TDDGroupAgent",
-    description="테스트 케이스 생성 작업을 순차적으로 수행하는 에이전트 그룹",
+    description="TDD 작업을 순차적으로 수행하는 에이전트 그룹",
     sub_agents=[
-        model_test_case_agent,
-        # widget_test_case_agent와 같은 다른 테스트 케이스 에이전트를 추가
+        model_test_agent,
+        android_test_agent
     ]
 )
 
@@ -32,18 +33,17 @@ def register_tdd_agents(app_spec):
     """
     try:
         # 기본 TDD 에이전트 목록 (항상 포함)
-        agents = [model_test_case_agent]
+        agents = [model_test_agent, android_test_agent]
 
         # 앱 명세에 따라 추가 TDD 에이전트 등록
         if "tests" in app_spec:
-            # 여기서 앱 명세에 따라 추가적인 테스트 에이전트를 동적으로 추가할 수 있음
-            # 예: WidgetTestCase, ControllerTestCase 등
+            # 여기서 앱 명세에 따라 추가적인 TDD 에이전트를 동적으로 추가할 수 있음
             pass
 
-        # 업데이트된 에이전트 목록으로 SequentialAgent 생성
-        updated_tdd_group_agent = SequentialAgent(
+        # 업데이트된 에이전트 목록으로 Agent 생성
+        updated_tdd_group_agent = Agent(
             name="TDDGroupAgent",
-            description="테스트 케이스 생성 작업을 순차적으로 수행하는 에이전트 그룹",
+            description="TDD 작업을 순차적으로 수행하는 에이전트 그룹",
             sub_agents=agents
         )
 
