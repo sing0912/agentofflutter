@@ -1,0 +1,77 @@
+{
+  "app_name": "todo_app",
+  "description": "간단한 할 일 관리 애플리케이션",
+  "models": [
+    {
+      "name": "Task",
+      "fields": [
+        {"name": "id", "type": "String", "nullable": false},
+        {"name": "title", "type": "String", "nullable": false},
+        {"name": "description", "type": "String", "nullable": true},
+        {"name": "isCompleted", "type": "bool", "nullable": false},
+        {"name": "createdAt", "type": "DateTime", "nullable": false},
+        {"name": "dueDate", "type": "DateTime", "nullable": true}
+      ]
+    },
+    {
+      "name": "Category",
+      "fields": [
+        {"name": "id", "type": "String", "nullable": false},
+        {"name": "name", "type": "String", "nullable": false},
+        {"name": "color", "type": "int", "nullable": false}
+      ]
+    }
+  ],
+  "pages": ["HomePage", "TaskDetailPage", "AddTaskPage", "SettingsPage"],
+  "controllers": [
+    {
+      "name": "TaskController",
+      "actions": ["addTask", "updateTask", "deleteTask", "toggleTaskStatus", "getTasks"]
+    }
+  ],
+  "api_endpoints": [
+    {
+      "path": "/tasks",
+      "method": "GET",
+      "description": "모든 할 일 목록 조회"
+    },
+    {
+      "path": "/tasks/{task_id}",
+      "method": "GET",
+      "description": "특정 할 일 조회"
+    },
+    {
+      "path": "/tasks",
+      "method": "POST",
+      "description": "새로운 할 일 추가"
+    },
+    {
+      "path": "/tasks/{task_id}",
+      "method": "PUT",
+      "description": "기존 할 일 수정"
+    },
+    {
+      "path": "/tasks/{task_id}",
+      "method": "DELETE",
+      "description": "할 일 삭제"
+    }
+  ],
+  "tests": [
+    {
+      "type": "model",
+      "target": "Task",
+      "description": "Task 모델 직렬화/역직렬화 테스트"
+    },
+    {
+      "type": "model",
+      "target": "Category",
+      "description": "Category 모델 직렬화/역직렬화 테스트"
+    }
+  ],
+  "security_checks": [
+    {
+      "type": "static_analysis",
+      "description": "Dart 코드 정적 분석"
+    }
+  ]
+} 
