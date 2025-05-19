@@ -1,11 +1,13 @@
 """
 WebviewGroupAgent: 웹뷰 파일 생성을 조정하는 그룹 에이전트.
 
-이 에이전트는 여러 웹뷰 파일 생성 에이전트의 실행을 조정합니다.
+이 에이전트는 여러 웹뷰 파일 생성 에이전트의 실행을 조정하고 관리합니다.
 """
 from google.adk.agents import ParallelAgent
 
-from src.agents.webview_group.home_page_view_agent import home_page_view_agent
+from src.agents.webview_group.home_page_view_agent import (
+    home_page_view_agent
+)
 from src.utils.logger import logger
 
 
@@ -25,10 +27,10 @@ def register_webview_agents(app_spec):
     앱 명세에 따라 필요한 웹뷰 에이전트를 등록합니다.
 
     Args:
-        app_spec: 애플리케이션 명세
+        app_spec (dict): 애플리케이션 명세
 
     Returns:
-        업데이트된 웹뷰 그룹 에이전트
+        ParallelAgent: 업데이트된 웹뷰 그룹 에이전트
     """
     try:
         # 기본 웹뷰 에이전트 목록 (항상 포함)

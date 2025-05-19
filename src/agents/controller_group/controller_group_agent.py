@@ -1,7 +1,7 @@
 """
 ControllerGroupAgent: 컨트롤러 파일 생성을 조정하는 그룹 에이전트.
 
-이 에이전트는 여러 컨트롤러 파일 생성 에이전트의 실행을 조정합니다.
+이 에이전트는 여러 컨트롤러 파일 생성 에이전트의 실행을 조정하고 관리합니다.
 """
 from google.adk import Agent
 
@@ -27,10 +27,10 @@ def register_controller_agents(app_spec):
     앱 명세에 따라 필요한 컨트롤러 에이전트를 등록합니다.
 
     Args:
-        app_spec: 애플리케이션 명세
+        app_spec (dict): 애플리케이션 명세
 
     Returns:
-        업데이트된 컨트롤러 그룹 에이전트
+        Agent: 업데이트된 컨트롤러 그룹 에이전트
     """
     try:
         # 기본 컨트롤러 에이전트 목록 (항상 포함)

@@ -48,7 +48,7 @@ def create_default_user_api_routes(tool_context) -> None:
         tool_context: 도구 컨텍스트
 
     Returns:
-        없음
+        None
     """
     # 기본 사용자 API 라우트 템플릿 컨텍스트
     user_api_context = {

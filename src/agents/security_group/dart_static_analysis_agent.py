@@ -1,13 +1,13 @@
 """
 DartStaticAnalysisAgent: Dart 코드 정적 분석을 수행하는 에이전트.
 
-이 에이전트는 생성된 Dart 코드에 대한 정적 분석을 수행하여 보안 취약점과 품질 문제를 검출합니다.
+이 에이전트는 Dart 코드의 정적 분석을 수행하여 잠재적인 문제를 찾아냅니다.
 """
+import json
 import subprocess
 import tempfile
-import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 from google.adk import Agent
 from google.adk.tools import FunctionTool
@@ -22,15 +22,15 @@ def run_dart_analyze(
     tool_context: Any
 ) -> Dict[str, Any]:
     """
-    Dart 코드 정적 분석을 실행합니다.
+    Dart 파일의 정적 분석을 수행합니다.
 
     Args:
-        file_content: 분석할 Dart 파일 내용
-        filename: 분석할 파일 이름
-        tool_context: ADK 도구 컨텍스트
+        file_content (str): 분석할 Dart 파일의 내용
+        filename (str): 분석할 파일의 이름
+        tool_context (Any): 도구 컨텍스트
 
     Returns:
-        분석 결과를 포함하는 딕셔너리
+        Dict[str, Any]: 분석 결과를 포함하는 딕셔너리
     """
     try:
         # 임시 디렉토리 생성
@@ -128,110 +128,70 @@ linter:
                 mime_type="application/json"
             )
 
-            # 아티팩트로 저장
-            report_filename = (
-                f"security/reports/{Path(filename).stem}_analysis.json"
-            )
-            version = tool_context.save_artifact(
-                filename=report_filename,
+            tool_context.save_artifact(
+                filename=f"analysis_reports/{filename}_analysis.json",
                 artifact=report_part
             )
 
-            # 세션 상태에 결과 요약 저장
-            security_reports = tool_context.state.get("security_reports", [])
-            security_reports.append({
-                "filename": filename,
-                "report_file": report_filename,
-                "issues_count": len(issues),
-                "success": exit_code == 0
-            })
-            tool_context.state["security_reports"] = security_reports
-
-            return {
-                "success": True,
-                "report_filename": report_filename,
-                "version": version,
-                "issues_count": len(issues),
-                "passed": exit_code == 0,
-                "message": (
-                    f"Dart 정적 분석 완료: {len(issues)}개 이슈 발견"
-                    if issues else "Dart 정적 분석 성공: 이슈 없음"
-                )
-            }
+            return report_content
 
     except Exception as e:
-        logger.error(f"Dart 정적 분석 중 오류 발생: {str(e)}")
+        logger.error(f"Dart 파일 분석 중 오류 발생: {str(e)}")
         return {
             "success": False,
             "error": str(e),
-            "message": f"Dart 정적 분석 실패: {str(e)}"
+            "message": f"Dart 파일 분석 실패: {str(e)}"
         }
-
-
-# FunctionTool 정의
-run_dart_analyze_tool = FunctionTool(run_dart_analyze)
-
-
-# Dart 정적 분석 에이전트 정의
-dart_static_analysis_agent = Agent(
-    name="DartStaticAnalysisAgent",
-    description="생성된 Dart 코드의 정적 분석을 수행하는 에이전트",
-    tools=[run_dart_analyze_tool]
-)
 
 
 def analyze_dart_files(tool_context) -> Dict[str, Any]:
     """
-    생성된 모든 Dart 파일에 대해 정적 분석을 수행합니다.
+    모든 Dart 파일에 대한 정적 분석을 수행합니다.
 
     Args:
         tool_context: 도구 컨텍스트
 
     Returns:
-        분석 결과 요약을 포함하는 딕셔너리
+        Dict[str, Any]: 전체 분석 결과를 포함하는 딕셔너리
     """
-    results = []
-
     try:
-        # 세션 상태에서 생성된 Dart 파일 목록 가져오기
-        dart_files = []
-
-        # 아티팩트 목록 가져오기
-        artifacts = tool_context.list_artifacts()
-
-        # Dart 파일 필터링
-        for artifact in artifacts:
-            if artifact.endswith(".dart"):
-                dart_files.append(artifact)
+        # 아티팩트 목록에서 Dart 파일 필터링
+        dart_files = [
+            f for f in tool_context.list_artifacts()
+            if f.endswith(".dart")
+        ]
 
         if not dart_files:
-            logger.warning("분석할 Dart 파일이 없습니다.")
             return {
                 "success": True,
+                "message": "분석할 Dart 파일이 없습니다.",
                 "analyzed_files": 0,
-                "message": "분석할 Dart 파일이 없습니다."
+                "total_issues": 0,
+                "all_passed": True,
+                "results": []
             }
 
-        # 각 파일에 대해 정적 분석 실행
-        for filename in dart_files:
-            # 아티팩트에서 파일 내용 로드
-            artifact = tool_context.load_artifact(filename=filename)
-            if artifact:
-                file_content = artifact.data.decode("utf-8")
+        # 각 파일에 대한 분석 수행
+        results = []
+        total_issues = 0
 
-                # 정적 분석 실행
-                result = run_dart_analyze(
-                    file_content=file_content,
-                    filename=filename,
-                    tool_context=tool_context
-                )
+        for dart_file in dart_files:
+            # 파일 내용 읽기
+            file_content = tool_context.read_artifact(dart_file)
+            if not file_content:
+                continue
 
-                results.append(result)
-            else:
-                logger.warning(f"파일을 로드할 수 없음: {filename}")
+            # 파일 분석
+            analysis_result = run_dart_analyze(
+                file_content=file_content,
+                filename=dart_file,
+                tool_context=tool_context
+            )
 
-        # 종합 결과 계산
-        total_issues = sum(result.get("issues_count", 0) for result in results)
+            results.append(analysis_result)
+            total_issues += analysis_result.get("issues_count", 0)
+
+        # 전체 결과 요약
         all_passed = all(result.get("passed", False) for result in results)
 
         return {
@@ -250,3 +210,14 @@ def analyze_dart_files(tool_context) -> Dict[str, Any]:
             "error": str(e),
             "message": f"Dart 파일 분석 실패: {str(e)}"
         }
+
+
+# FunctionTool 정의
+analyze_dart_files_tool = FunctionTool(analyze_dart_files)
+
+# Dart 정적 분석 에이전트 정의
+dart_static_analysis_agent = Agent(
+    name="DartStaticAnalysisAgent",
+    description="Dart 코드의 정적 분석을 수행하는 에이전트",
+    tools=[analyze_dart_files_tool]
+)
