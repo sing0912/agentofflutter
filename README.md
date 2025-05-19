@@ -29,7 +29,9 @@ REDIS_PORT=6379
 REDIS_DB=0
 
 # Flutter 프로젝트 설정
-FLUTTER_OUTPUT_DIR=./output
+FLUTTER_OUTPUT_DIR=./output/flutter_apps
+AGENT_ARTIFACTS_DIR=./output/agent_artifacts
+FLUTTER_ARCHIVES_DIR=./output/flutter_apps/archives
 
 # 로깅 설정
 LOG_LEVEL=INFO
@@ -59,6 +61,22 @@ LOG_LEVEL=INFO
 6. **보안 그룹**: 코드 정적 분석 및 보안 취약점 검사
 
 각 그룹 내 에이전트들은 "하나의 에이전트, 하나의 파일" 원칙에 따라 단일 파일 생성을 담당합니다.
+
+### 출력 디렉토리 구조
+
+프로젝트 실행 결과물은 다음과 같은 디렉토리 구조로 관리됩니다:
+
+```
+output/
+│
+├── flutter_apps/         # 생성된 Flutter 앱 파일
+│   ├── <app_name>/       # 개별 앱 디렉토리 (앱 이름별)
+│   └── archives/         # ZIP 형태로 아카이빙된 앱 파일
+│
+└── agent_artifacts/      # 에이전트 작업 중간 결과물
+    ├── sessions/         # 에이전트 세션 정보
+    └── job_states/       # 작업 상태 정보
+```
 
 ## 시작하기
 

@@ -43,7 +43,13 @@ REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 
 # Flutter 프로젝트 설정
 FLUTTER_OUTPUT_DIR = os.getenv(
-    "FLUTTER_OUTPUT_DIR", str(BASE_DIR / "output")
+    "FLUTTER_OUTPUT_DIR", str(BASE_DIR / "output" / "flutter_apps")
+)
+AGENT_ARTIFACTS_DIR = os.getenv(
+    "AGENT_ARTIFACTS_DIR", str(BASE_DIR / "output" / "agent_artifacts")
+)
+FLUTTER_ARCHIVES_DIR = os.getenv(
+    "FLUTTER_ARCHIVES_DIR", str(BASE_DIR / "output" / "flutter_apps" / "archives")
 )
 
 # 로깅 설정

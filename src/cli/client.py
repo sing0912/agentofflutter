@@ -9,6 +9,7 @@ import json
 import time
 import argparse
 import httpx
+import zipfile
 
 from src.utils.logger import setup_logger
 
@@ -302,12 +303,18 @@ async def download_app(job_id: str, output_dir: str):
                 app_name = job_data["app_spec"]["app_name"]  # 향후 사용 예정
 
             # 파일 저장
-            output_path = os.path.join(
-                output_dir, f"{app_name}.zip")  # 향후 사용 예정
+            output_path = os.path.join(output_dir, "flutter_app.zip")
             with open(output_path, "wb") as f:
                 f.write(download_response.content)
-
+            
             print(f"다운로드 완료: {output_path}")
+            
+            # ZIP 파일 압축 해제
+            print("파일 압축 해제 중...")
+            with zipfile.ZipFile(output_path, 'r') as zip_ref:
+                zip_ref.extractall(output_dir)
+            
+            print(f"앱이 {output_dir} 디렉토리에 성공적으로 압축 해제되었습니다.")
 
             return True
     except Exception as e:

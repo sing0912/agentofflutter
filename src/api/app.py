@@ -1136,9 +1136,16 @@ async def download_zip(job_id: str):
         app_name = app_spec.get("app_name", "flutter_app")
         app_version = folder_name.split('_')[-1] if '_' in folder_name else ""
 
-        # 임시 메모리 버퍼에 ZIP 파일 생성
-        buffer = io.BytesIO()
-        with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        # 앱 이름과 버전으로 ZIP 파일명 생성
+        filename = f"App_{app_name}_{app_version}.zip"
+        
+        # ZIP 파일 저장 경로 (archives 디렉토리 사용)
+        from src.config.settings import FLUTTER_ARCHIVES_DIR
+        os.makedirs(FLUTTER_ARCHIVES_DIR, exist_ok=True)
+        zip_file_path = os.path.join(FLUTTER_ARCHIVES_DIR, filename)
+        
+        # ZIP 파일 생성
+        with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
             # 재귀적으로 모든 파일 압축
             for root, _, files in os.walk(job_output_dir):
                 for file in files:
@@ -1146,12 +1153,17 @@ async def download_zip(job_id: str):
                     # ZIP 내 상대 경로 계산
                     arcname = os.path.relpath(file_path, job_output_dir)
                     zip_file.write(file_path, arcname)
+        
+        # ZIP 파일을 메모리에 로드
+        buffer = io.BytesIO()
+        with open(zip_file_path, 'rb') as f:
+            buffer.write(f.read())
 
         # 버퍼 위치를 시작으로 재설정
         buffer.seek(0)
-
-        # ZIP 파일 이름 설정 (앱 이름과 버전 사용)
-        filename = f"App_{app_name}_{app_version}.zip"
+        
+        # ZIP 파일이 저장된 경로도 기록
+        active_jobs[job_id]["archive_path"] = zip_file_path
 
         # 파일 다운로드 응답 반환
         return StreamingResponse(
